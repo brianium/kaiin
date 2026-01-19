@@ -56,7 +56,7 @@ Then generate routes:
 
 ```clojure
 ;; deps.edn
-{:deps {io.github.brianium/kaiin {:git/tag "v0.1.0" :git/sha "..."}}}
+{:deps {io.github.brianium/kaiin {:git/tag "v0.1.0" :git/sha "088a6af"}}}
 ```
 
 Peer dependencies (your application provides these):
