@@ -1,6 +1,6 @@
 # 007: Action Handlers for Broadcast
 
-**Status:** Active
+**Status:** Complete
 **Priority:** High
 **Dependencies:** 004-handler-generation, 005-sfere-integration, 006-lobby-demo
 

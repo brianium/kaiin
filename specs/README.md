@@ -8,7 +8,7 @@ This directory contains living specifications for kaiin features and concepts.
 
 Core library is complete. All specs (001-005) are implemented in `src/clj/ascolais/kaiin.clj`.
 
-**Next step:** 007-action-handlers-for-broadcast - use sandestin actions for kaiin broadcast routes, then update demo to use kaiin-generated `/message` route.
+**Current status:** All specs complete. Demo uses kaiin-generated `/message` route with sandestin actions.
 
 ## Public API
 
@@ -45,7 +45,7 @@ The main namespace `ascolais.kaiin` exports:
 | [004-handler-generation](./004-handler-generation.md) | Complete | Ring handler generation from effect metadata |
 | [005-sfere-integration](./005-sfere-integration.md) | Complete | Target semantics for sfere broadcast/with-connection |
 | [006-lobby-demo](./006-lobby-demo.md) | Complete | Port of sfere lobby demo using kaiin conventions |
-| [007-action-handlers-for-broadcast](./007-action-handlers-for-broadcast.md) | Active | Use sandestin actions (not effects) for kaiin broadcast routes |
+| [007-action-handlers-for-broadcast](./007-action-handlers-for-broadcast.md) | Complete | Use sandestin actions (not effects) for kaiin broadcast routes |
 
 Status values: Draft, Active, Complete, Archived
 
@@ -78,10 +78,8 @@ Kaiin produces data structures with namespaced keywords (e.g., `::twk/fx`, `::sf
 
 See [006-lobby-demo](./006-lobby-demo.md) for a working example in `dev/src/clj/demo/`.
 
-**Current status:** Demo uses custom handlers. See [007-action-handlers-for-broadcast](./007-action-handlers-for-broadcast.md) for migrating `/message` to a kaiin-generated route using sandestin actions.
-
 The demo demonstrates:
+- Kaiin-generated `/message` route using sandestin actions
 - Correct middleware placement (at router level, not ring-handler level)
-- Connection establishment patterns with sfere
-- Real-time broadcasting with twk/sfere
+- Connection establishment patterns with sfere (custom handlers)
 - Composing custom routes with `kaiin/routes`
