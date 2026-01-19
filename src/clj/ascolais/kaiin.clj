@@ -333,23 +333,22 @@
     (detect-route-conflicts routes)
     (vec routes)))
 
-(defn router
-  "Generate a reitit router from a sandestin dispatch function.
+(defn routes
+  "Generate reitit route vectors from a sandestin dispatch function.
 
    Usage:
-     (kaiin/router dispatch)
-     (kaiin/router dispatch {:prefix \"/api\"})
+     (kaiin/routes dispatch)
+     (kaiin/routes dispatch {:prefix \"/api\"})
 
    Options:
-     :prefix         - Path prefix for all generated routes (default: nil)
-     :default-method - Default HTTP method when not specified (default: :post)
-     :data           - Reitit route data merged into all routes
+     :prefix - Path prefix for all generated routes (default: nil)
 
-   The dispatch function must have effects/actions with ::kaiin/* metadata.
+   Returns a vector of reitit route definitions that can be composed with
+   other routes before creating a router.
 
    For testing without sandestin, use routes-from-metadata with a seq of
    metadata maps directly."
-  ([dispatch] (router dispatch {}))
+  ([dispatch] (routes dispatch {}))
   ([dispatch opts]
    (let [;; Get describe function from sandestin
          describe (requiring-resolve 'ascolais.sandestin.describe/describe)
@@ -367,15 +366,31 @@
          metadata-seq (if prefix
                         (map #(update % ::path (fn [p] (str prefix p)))
                              metadata-seq)
-                        metadata-seq)
+                        metadata-seq)]
 
-         ;; Generate routes
-         routes (routes-from-metadata metadata-seq)
+     ;; Generate and return routes
+     (routes-from-metadata metadata-seq))))
 
-         ;; Build reitit router options
+(defn router
+  "Generate a reitit router from a sandestin dispatch function.
+
+   Usage:
+     (kaiin/router dispatch)
+     (kaiin/router dispatch {:prefix \"/api\"})
+
+   Options:
+     :prefix - Path prefix for all generated routes (default: nil)
+     :data   - Reitit route data merged into all routes
+
+   The dispatch function must have effects/actions with ::kaiin/* metadata.
+
+   For composing with other routes, use `routes` instead to get route vectors,
+   then create a single router from the combined routes."
+  ([dispatch] (router dispatch {}))
+  ([dispatch opts]
+   (let [route-vec (routes dispatch (select-keys opts [:prefix]))
          router-opts (when-let [data (:data opts)]
                        {:data data})]
-
      (if router-opts
-       (ring/router routes router-opts)
-       (ring/router routes)))))
+       (ring/router route-vec router-opts)
+       (ring/router route-vec)))))

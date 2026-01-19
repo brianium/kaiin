@@ -1,6 +1,6 @@
 # 006: Lobby Demo
 
-**Status:** Active
+**Status:** Complete
 **Priority:** High
 **Dependencies:** 001-core-api, 002-registry-metadata, 004-handler-generation, 005-sfere-integration
 
@@ -37,20 +37,39 @@ The sfere demo implements a real-time chat lobby with:
 
 ### What Kaiin Generates
 
-Kaiin generates routes for simple effect dispatch - single target, no exclusions:
-
-- **POST /message** - Broadcast message to all lobby participants
+In the current implementation, kaiin generates **no routes** for this demo. See Implementation Notes below.
 
 ### What Remains Custom
 
-Connection establishment and complex multi-target handlers:
+All routes are custom handlers:
 
 - **GET /** - Initial page (static HTML)
 - **POST /join** - Returns lobby UI
 - **POST /sse** - Establishes persistent connection (`::sfere/key`)
+- **POST /message** - Broadcasts message to all lobby participants
 - **POST /leave** - Complex: multiple broadcasts with exclusions, then close connection
 
 The `leave` handler requires different sfere routing for different parts (broadcast with exclude to others, with-connection to self). This doesn't fit kaiin's "one target per route" model, so it stays custom.
+
+## Implementation Notes
+
+The `/message` route was originally intended to be kaiin-generated, but during implementation we discovered a design mismatch:
+
+**The Problem:** Kaiin's `generate-handler` creates:
+```clojure
+[::sfere/broadcast {:pattern [:* [:lobby :*]]} [:lobby/send-message "brian" "hello"]]
+```
+
+But sfere/broadcast expects the nested effect to be a direct twk action:
+```clojure
+[::sfere/broadcast {:pattern [:* [:lobby :*]]} [::twk/patch-elements ...]]
+```
+
+The dispatch vector `[:lobby/send-message ...]` would need to be dispatched again to produce the twk effects, but sfere/broadcast doesn't do that - it sends the nested effect directly to each connection's SSE.
+
+**Resolution:** Made `/message` a custom handler that broadcasts twk effects directly, following the sfere demo pattern. This works correctly.
+
+**Future Consideration:** Kaiin could be enhanced to support "effect-returning effects" where the handler output is dispatched before being broadcast. This would require changes to how `generate-handler` constructs the sfere/broadcast effect.
 
 ## Registry with Kaiin Metadata
 
@@ -284,7 +303,7 @@ This is the only kaiin-generated route. The effect handler returns twk effects t
 | `/` | GET | Custom | Initial page |
 | `/join` | POST | Custom | Validate, return lobby UI |
 | `/sse` | POST | Custom | Establish persistent connection |
-| `/message` | POST | Kaiin | Broadcast message to all |
+| `/message` | POST | Custom | Broadcast message to all (see Implementation Notes) |
 | `/leave` | POST | Custom | Complex: notify others, close connection |
 
 ## Key Differences from Original Sfere Demo

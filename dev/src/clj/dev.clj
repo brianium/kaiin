@@ -2,7 +2,8 @@
   (:require [clojure.pprint :refer [pprint]]
             [clj-reload.core :as reload]
             [portal.api :as p]
-            [ascolais.kaiin :as kaiin]))
+            [ascolais.kaiin :as kaiin]
+            [demo.app :as demo]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Portal Setup (reload-safe)
@@ -20,28 +21,32 @@
   {:environment "development"})
 
 (defn start
-  "Start the development system."
+  "Start the development system with lobby demo."
   ([]
    (start config))
   ([c]
    (tap> {:event :system/start :config c})
+   (demo/start-system (get c :port 3000))
    :started))
 
 (defn stop
   "Stop the development system."
   []
   (tap> {:event :system/stop})
+  (demo/stop-system)
   :stopped)
 
 (defn suspend
   "Suspend the system before namespace reload."
   []
-  (tap> {:event :system/suspend}))
+  (tap> {:event :system/suspend})
+  (demo/stop-system))
 
 (defn resume
   "Resume the system after namespace reload."
   [c]
-  (tap> {:event :system/resume :config c}))
+  (tap> {:event :system/resume :config c})
+  (demo/start-system (get c :port 3000)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Reloading
@@ -56,11 +61,11 @@
   (reload/reload))
 
 (defn restart
-  "Full restart: stop, reload, and start."
+  "Full restart: stop, reload, and start.
+   Note: reload triggers after-ns-reload hook which resumes the system."
   []
   (stop)
-  (reload)
-  (start))
+  (reload))
 
 ;; clj-reload hooks
 (defn before-ns-unload []
