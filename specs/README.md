@@ -8,7 +8,7 @@ This directory contains living specifications for kaiin features and concepts.
 
 Core library is complete. All specs (001-005) are implemented in `src/clj/ascolais/kaiin.clj`.
 
-**Next step:** 007-effect-dispatch-before-broadcast - fix the dispatch/broadcast design mismatch discovered in the lobby demo.
+**Next step:** 007-action-handlers-for-broadcast - use sandestin actions for kaiin broadcast routes, then update demo to use kaiin-generated `/message` route.
 
 ## Public API
 
@@ -45,7 +45,7 @@ The main namespace `ascolais.kaiin` exports:
 | [004-handler-generation](./004-handler-generation.md) | Complete | Ring handler generation from effect metadata |
 | [005-sfere-integration](./005-sfere-integration.md) | Complete | Target semantics for sfere broadcast/with-connection |
 | [006-lobby-demo](./006-lobby-demo.md) | Complete | Port of sfere lobby demo using kaiin conventions |
-| [007-effect-dispatch-before-broadcast](./007-effect-dispatch-before-broadcast.md) | Active | Dispatch effects before broadcasting results |
+| [007-action-handlers-for-broadcast](./007-action-handlers-for-broadcast.md) | Active | Use sandestin actions (not effects) for kaiin broadcast routes |
 
 Status values: Draft, Active, Complete, Archived
 
@@ -76,14 +76,12 @@ Kaiin produces data structures with namespaced keywords (e.g., `::twk/fx`, `::sf
 
 ## Lobby Demo
 
-See [006-lobby-demo](./006-lobby-demo.md) for a complete working example in `dev/src/clj/demo/`.
+See [006-lobby-demo](./006-lobby-demo.md) for a working example in `dev/src/clj/demo/`.
 
-**Key finding:** During implementation, we discovered that kaiin's current design broadcasts raw dispatch vectors (e.g., `[:lobby/send-message ...]`) but sfere expects direct twk effects (e.g., `[::twk/patch-elements ...]`). As a result, all demo routes are custom handlers.
+**Current status:** Demo uses custom handlers. See [007-action-handlers-for-broadcast](./007-action-handlers-for-broadcast.md) for migrating `/message` to a kaiin-generated route using sandestin actions.
 
-The demo still demonstrates:
-- How to compose custom routes with `kaiin/routes` (even though no kaiin routes are used)
+The demo demonstrates:
 - Correct middleware placement (at router level, not ring-handler level)
 - Connection establishment patterns with sfere
 - Real-time broadcasting with twk/sfere
-
-**Future consideration:** Kaiin could be enhanced to support "effect-returning effects" where handler output is dispatched before being broadcast.
+- Composing custom routes with `kaiin/routes`
