@@ -1,6 +1,6 @@
 # 002: Registry Metadata Schema
 
-**Status:** Active
+**Status:** Complete
 **Priority:** High
 **Dependencies:** None
 

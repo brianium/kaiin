@@ -2,7 +2,192 @@
   (:require [clojure.test :refer [deftest is testing]]
             [ascolais.kaiin :as kaiin]))
 
-(deftest greet-test
-  (testing "greet returns a greeting message"
-    (is (= "Hello, World!" (kaiin/greet "World")))
-    (is (= "Hello, Clojure!" (kaiin/greet "Clojure")))))
+;; Path parameter extraction tests
+
+(deftest extract-path-params-test
+  (testing "extracts single parameter"
+    (is (= #{:room-id} (kaiin/extract-path-params "/chat/:room-id/message"))))
+
+  (testing "extracts multiple parameters"
+    (is (= #{:user-id :section}
+           (kaiin/extract-path-params "/user/:user-id/profile/:section"))))
+
+  (testing "handles path with no parameters"
+    (is (= #{} (kaiin/extract-path-params "/static/path"))))
+
+  (testing "handles parameter at end of path"
+    (is (= #{:id} (kaiin/extract-path-params "/items/:id"))))
+
+  (testing "handles hyphenated parameters"
+    (is (= #{:room-id :user-name}
+           (kaiin/extract-path-params "/:room-id/:user-name")))))
+
+;; Signal key extraction tests
+
+(deftest extract-signal-keys-test
+  (testing "extracts flat keys from map schema"
+    (is (= #{:message :username}
+           (kaiin/extract-signal-keys [:map [:message :string] [:username :string]]))))
+
+  (testing "extracts nested keys"
+    (is (= #{:user [:user :name] [:user :email]}
+           (kaiin/extract-signal-keys
+            [:map [:user [:map [:name :string] [:email :string]]]]))))
+
+  (testing "handles mixed flat and nested"
+    (is (= #{:message :user [:user :id]}
+           (kaiin/extract-signal-keys
+            [:map [:message :string] [:user [:map [:id :uuid]]]]))))
+
+  (testing "handles deeply nested structures"
+    (is (= #{:a [:a :b] [:a :b :c]}
+           (kaiin/extract-signal-keys
+            [:map [:a [:map [:b [:map [:c :string]]]]]]))))
+
+  (testing "handles optional keys with property maps"
+    (is (= #{:required :optional}
+           (kaiin/extract-signal-keys
+            [:map
+             [:required :string]
+             [:optional {:optional true} :string]])))))
+
+;; Token extraction tests
+
+(deftest extract-tokens-test
+  (testing "extracts signal tokens from dispatch"
+    (is (= {:signal-tokens (list [::kaiin/signal :message])
+            :path-param-tokens ()}
+           (kaiin/extract-tokens [:chat/send [::kaiin/signal :message]]))))
+
+  (testing "extracts path-param tokens from dispatch"
+    (is (= {:signal-tokens ()
+            :path-param-tokens (list [::kaiin/path-param :room-id])}
+           (kaiin/extract-tokens [:chat/send [::kaiin/path-param :room-id]]))))
+
+  (testing "extracts mixed tokens"
+    (is (= {:signal-tokens (list [::kaiin/signal :message])
+            :path-param-tokens (list [::kaiin/path-param :room-id])}
+           (kaiin/extract-tokens
+            [:chat/send
+             [::kaiin/path-param :room-id]
+             [::kaiin/signal :message]]))))
+
+  (testing "extracts nested signal paths"
+    (is (= {:signal-tokens (list [::kaiin/signal [:user :name]])
+            :path-param-tokens ()}
+           (kaiin/extract-tokens [:user/update [::kaiin/signal [:user :name]]]))))
+
+  (testing "extracts tokens from target vectors"
+    (is (= {:signal-tokens ()
+            :path-param-tokens (list [::kaiin/path-param :room-id])}
+           (kaiin/extract-tokens [:* [:chat [::kaiin/path-param :room-id]]])))))
+
+;; Signal token validation tests
+
+(deftest validate-signal-tokens-test
+  (testing "valid flat signal reference returns nil"
+    (is (nil? (kaiin/validate-signal-tokens
+               {::kaiin/signals [:map [:message :string]]
+                ::kaiin/dispatch [:chat/send [::kaiin/signal :message]]
+                ::kaiin/target [:* :*]}))))
+
+  (testing "valid nested signal reference returns nil"
+    (is (nil? (kaiin/validate-signal-tokens
+               {::kaiin/signals [:map [:user [:map [:name :string]]]]
+                ::kaiin/dispatch [:user/update [::kaiin/signal [:user :name]]]
+                ::kaiin/target [:* :*]}))))
+
+  (testing "invalid signal reference returns error"
+    (let [errors (kaiin/validate-signal-tokens
+                  {::kaiin/signals [:map [:message :string]]
+                   ::kaiin/dispatch [:chat/send [::kaiin/signal :nonexistent]]
+                   ::kaiin/target [:* :*]})]
+      (is (= 1 (count errors)))
+      (is (= :nonexistent (:path (first errors))))))
+
+  (testing "invalid nested signal reference returns error"
+    (let [errors (kaiin/validate-signal-tokens
+                  {::kaiin/signals [:map [:user [:map [:name :string]]]]
+                   ::kaiin/dispatch [:user/update [::kaiin/signal [:user :email]]]
+                   ::kaiin/target [:* :*]})]
+      (is (= 1 (count errors)))
+      (is (= [:user :email] (:path (first errors)))))))
+
+;; Path param token validation tests
+
+(deftest validate-path-param-tokens-test
+  (testing "valid path param reference returns nil"
+    (is (nil? (kaiin/validate-path-param-tokens
+               {::kaiin/path "/chat/:room-id/message"
+                ::kaiin/dispatch [:chat/send [::kaiin/path-param :room-id]]
+                ::kaiin/target [:* :*]}))))
+
+  (testing "invalid path param reference returns error"
+    (let [errors (kaiin/validate-path-param-tokens
+                  {::kaiin/path "/chat/:room-id/message"
+                   ::kaiin/dispatch [:chat/send [::kaiin/path-param :user-id]]
+                   ::kaiin/target [:* :*]})]
+      (is (= 1 (count errors)))
+      (is (= :user-id (:param (first errors))))
+      (is (= #{:room-id} (:available-params (first errors))))))
+
+  (testing "path param in target is validated"
+    (let [errors (kaiin/validate-path-param-tokens
+                  {::kaiin/path "/chat/message"
+                   ::kaiin/dispatch [:chat/send]
+                   ::kaiin/target [:* [:chat [::kaiin/path-param :room-id]]]})]
+      (is (= 1 (count errors)))
+      (is (= :room-id (:param (first errors)))))))
+
+;; Complete metadata validation tests
+
+(deftest validate-metadata-test
+  (testing "valid metadata passes validation"
+    (is (nil? (kaiin/validate-metadata
+               {::kaiin/path "/chat/:room-id/message"
+                ::kaiin/method :post
+                ::kaiin/signals [:map [:message :string] [:username :string]]
+                ::kaiin/dispatch [:chat/send
+                                  [::kaiin/path-param :room-id]
+                                  [::kaiin/signal :message]]
+                ::kaiin/target [:* [:chat [::kaiin/path-param :room-id]]]}))))
+
+  (testing "missing required key throws"
+    (is (thrown-with-msg?
+         clojure.lang.ExceptionInfo
+         #"Invalid kaiin metadata"
+         (kaiin/validate-metadata
+          {::kaiin/path "/chat/message"
+           ;; missing ::kaiin/signals
+           ::kaiin/dispatch [:chat/send]
+           ::kaiin/target [:* :*]}))))
+
+  (testing "invalid signals schema throws"
+    (is (thrown-with-msg?
+         clojure.lang.ExceptionInfo
+         #"Invalid kaiin metadata"
+         (kaiin/validate-metadata
+          {::kaiin/path "/chat/message"
+           ::kaiin/signals :string  ;; not a :map schema
+           ::kaiin/dispatch [:chat/send]
+           ::kaiin/target [:* :*]}))))
+
+  (testing "invalid signal token reference throws"
+    (is (thrown-with-msg?
+         clojure.lang.ExceptionInfo
+         #"Invalid kaiin metadata"
+         (kaiin/validate-metadata
+          {::kaiin/path "/chat/message"
+           ::kaiin/signals [:map [:message :string]]
+           ::kaiin/dispatch [:chat/send [::kaiin/signal :nonexistent]]
+           ::kaiin/target [:* :*]}))))
+
+  (testing "invalid path param token reference throws"
+    (is (thrown-with-msg?
+         clojure.lang.ExceptionInfo
+         #"Invalid kaiin metadata"
+         (kaiin/validate-metadata
+          {::kaiin/path "/chat/message"  ;; no :room-id param
+           ::kaiin/signals [:map [:message :string]]
+           ::kaiin/dispatch [:chat/send [::kaiin/path-param :room-id]]
+           ::kaiin/target [:* :*]})))))
