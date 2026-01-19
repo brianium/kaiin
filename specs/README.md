@@ -6,22 +6,24 @@ This directory contains living specifications for kaiin features and concepts.
 
 ## Current Priorities
 
-1. **Resolve Open Questions** - Several design decisions need clarification before implementation
-2. **002-registry-metadata** - Foundation for all other specs
-3. **003-token-replacement** - Core mechanism for dynamic dispatch
-4. **004-handler-generation** - Ties everything together
-5. **001-core-api** - Public API surface
-6. **005-sfere-integration** - Connection dispatch semantics
+1. **002-registry-metadata** - Foundation for all other specs
+2. **003-token-replacement** - Core mechanism for dynamic dispatch
+3. **004-handler-generation** - Ties everything together
+4. **001-core-api** - Public API surface
+5. **005-sfere-integration** - Connection dispatch semantics
+
+All high-level design questions have been resolved. See below for decisions.
 
 ## Spec Index
 
 | Spec | Status | Description |
 |------|--------|-------------|
-| [001-core-api](./001-core-api.md) | Draft | Primary API: `kaiin/router` function and options |
-| [002-registry-metadata](./002-registry-metadata.md) | Draft | Schema for `::kaiin/*` keys in effect registrations |
-| [003-token-replacement](./003-token-replacement.md) | Draft | How signal and path-param tokens are replaced |
-| [004-handler-generation](./004-handler-generation.md) | Draft | Ring handler generation from effect metadata |
-| [005-sfere-integration](./005-sfere-integration.md) | Draft | Target semantics for sfere broadcast/with-connection |
+| [001-core-api](./001-core-api.md) | Active | Primary API: `kaiin/router` function and options |
+| [002-registry-metadata](./002-registry-metadata.md) | Active | Schema for `::kaiin/*` keys in effect registrations |
+| [003-token-replacement](./003-token-replacement.md) | Active | How signal and path-param tokens are replaced |
+| [004-handler-generation](./004-handler-generation.md) | Active | Ring handler generation from effect metadata |
+| [005-sfere-integration](./005-sfere-integration.md) | Active | Target semantics for sfere broadcast/with-connection |
+| [006-lobby-demo](./006-lobby-demo.md) | Active | Port of sfere lobby demo using kaiin conventions |
 
 Status values: Draft, Active, Complete, Archived
 
@@ -29,54 +31,29 @@ Status values: Draft, Active, Complete, Archived
 
 These questions span multiple specs and need resolution before implementation:
 
-### 1. Middleware Configuration
+### 1. Middleware Configuration - RESOLVED
 
-**Question:** Should kaiin automatically include twk middleware, or require the application to configure it externally?
+**Decision:** Option A - Kaiin generates handlers that return twk response maps (`{::twk/fx [...] ::twk/with-open-sse? true}`). The application is responsible for wrapping the router with `twk/with-datastar` middleware. This keeps kaiin focused on route generation and avoids coupling to specific HTTP servers.
 
-**Context:** Twk's `with-datastar` middleware requires an `->sse-response` adapter (http-kit, ring, etc.) that kaiin can't know about.
+### 2. System/Store Injection - RESOLVED
 
-**Options:**
-- A) Kaiin generates handlers that return twk response maps; application wraps with middleware
-- B) Kaiin accepts SSE adapter in options and configures middleware internally
+**Decision:** Kaiin handlers don't need access to system or sfere store. They return twk response maps with sfere effects - the actual dispatch happens in twk middleware which constructs the system, and sfere's registry has the store closed over in its effects. Kaiin is purely about route generation and response shaping.
 
-### 2. System/Store Injection
+### 3. Actions vs Effects - RESOLVED
 
-**Question:** How do sandestin `system` and sfere `store` get injected into handlers?
+**Decision:** Support both. From kaiin's perspective, there's no difference - both are dispatch vectors wrapped in sfere effects. Sandestin handles action expansion internally. Kaiin inspects both `(describe dispatch :effects)` and `(describe dispatch :actions)` for `::kaiin/*` metadata.
 
-**Context:** Effect dispatch needs a system map. Sfere needs its store. Both must be available at request time.
+### 4. Validation Strictness - RESOLVED
 
-**Options:**
-- A) Pass in `kaiin/router` options, stored in handler closures
-- B) Middleware adds to request map
-- C) Use request itself as system (matches twk pattern)
+**Decision:** Strict. Fail fast at router creation time if:
+- `[::kaiin/signal :foo]` references a key not extractable from `::kaiin/signals` schema
+- `[::kaiin/path-param :bar]` references a param not in `::kaiin/path`
 
-### 3. Actions vs Effects
+This catches configuration errors early rather than at runtime.
 
-**Question:** Should kaiin support both effects AND actions, or only effects?
+### 5. Connection Establishment - RESOLVED
 
-**Context:** Actions are pure functions that expand to effects. They could also have HTTP interfaces.
-
-**Recommendation:** Start with effects only. Actions can be added if use cases emerge.
-
-### 4. Validation Strictness
-
-**Question:** How strict should token/schema validation be at router creation time?
-
-**Options:**
-- A) Strict: Validate all tokens match schemas/paths, fail fast on misconfiguration
-- B) Lenient: Only fail at runtime when tokens can't resolve
-- C) Configurable
-
-### 5. Connection Establishment
-
-**Question:** Does kaiin provide any support for connection establishment routes (the `::sfere/key` response pattern)?
-
-**Context:** Kaiin handlers return `::twk/with-open-sse? true` (non-persistent). Persistent connections need separate setup.
-
-**Options:**
-- A) Pure application responsibility
-- B) Kaiin provides optional helper for connection routes
-- C) Additional metadata key `::kaiin/persistent?` changes behavior
+**Decision:** Option A - Pure application responsibility. Kaiin only generates dispatch routes (which return `::twk/with-open-sse? true`). Connection establishment routes that return `::sfere/key` are a separate concern and written by the application.
 
 ## Dependencies
 
@@ -91,14 +68,6 @@ Development/test dependencies:
 - `ascolais/sandestin`
 - `metosin/reitit`
 
-## Lobby Demo Reference
+## Lobby Demo
 
-The sfere project contains a lobby demo that kaiin will replicate using kaiin conventions. Key patterns to support:
-
-1. **Join lobby** - Establish persistent connection with `::sfere/key`
-2. **Send message** - Broadcast to all lobby participants
-3. **Leave lobby** - Close connection, notify others
-
-The demo shows the separation between:
-- Connection establishment (custom handler, returns `::sfere/key`)
-- Effect dispatch (kaiin-generated handlers, use stored connections)
+See [006-lobby-demo](./006-lobby-demo.md) for the complete port of the sfere lobby demo using kaiin conventions.

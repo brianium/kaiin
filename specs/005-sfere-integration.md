@@ -1,6 +1,6 @@
 # 005: Sfere Integration
 
-**Status:** Draft
+**Status:** Active
 **Priority:** High
 **Dependencies:** 002-registry-metadata, 004-handler-generation
 
@@ -180,21 +180,15 @@ For connection establishment (joining a room/lobby), a separate endpoint is need
 
 ## Open Questions
 
-1. **Exclude Support:** Should `::kaiin/target-exclude` be supported in v1?
+1. ~~**Exclude Support:**~~ **RESOLVED** - No exclude support for v1. Write a custom handler if needed.
 
-2. **Connection Establishment:** Should kaiin provide any helpers for connection establishment routes, or is that entirely application responsibility?
+2. ~~**Connection Establishment:**~~ **RESOLVED** - Application responsibility. Kaiin only generates dispatch routes.
 
-3. **Scope ID:** Sfere keys have a scope-id (often `::sfere/default-scope`). Should kaiin:
-   - Always use `::sfere/default-scope`
-   - Allow configuring scope in metadata
-   - Derive scope from request (e.g., user ID from session)
+3. ~~**Scope ID:**~~ **RESOLVED** - Scope is part of `::kaiin/target` directly. No special handling needed.
 
-4. **Store Access:** How does the generated handler access the sfere store for wildcard detection at runtime? (Actually, wildcard detection is static - we check the target pattern before token replacement)
+4. ~~**Store Access:**~~ **RESOLVED** - Not needed. Wildcard detection is static (checked before token replacement). Handlers don't need the store.
 
-5. **Nested Wildcards:** What about wildcards in the inner key?
-   ```clojure
-   [:* [:chat :*]]  ;; All chats, all users - is this useful?
-   ```
+5. ~~**Nested Wildcards:**~~ **RESOLVED** - Support whatever sfere supports. If there's a `:*` anywhere in the target, use broadcast. Simple rule.
 
 ## Related Specs
 

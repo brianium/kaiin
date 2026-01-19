@@ -1,6 +1,6 @@
 # 003: Token Replacement System
 
-**Status:** Draft
+**Status:** Active
 **Priority:** High
 **Dependencies:** 002-registry-metadata
 
@@ -181,25 +181,13 @@ At router creation time, we can validate:
 
 ## Open Questions
 
-1. **Default Values:** Should tokens support defaults?
-   ```clojure
-   [::kaiin/signal :page {:default 1}]
-   ```
+1. ~~**Default Values:**~~ **RESOLVED** - No defaults for v1.
 
-2. **Type Coercion:** Path params are strings. Should we coerce based on schema?
-   ```clojure
-   ;; If ::s/schema expects an int, coerce "123" -> 123?
-   ```
+2. ~~**Type Coercion:**~~ **RESOLVED** - No coercion. Pass values as-is.
 
-3. **Computed Tokens:** Should we support a `[::kaiin/fn f]` token for computed values?
-   ```clojure
-   [::kaiin/fn (fn [{:keys [signals]}] (str (:first signals) " " (:last signals)))]
-   ```
+3. ~~**Computed Tokens:**~~ **RESOLVED** - No computed tokens for v1. Handle in effect handler if needed.
 
-4. **Validation Strictness:** Should validation be:
-   - Strict: Fail if any token might not resolve
-   - Lenient: Only fail on actual resolution errors at runtime
-   - Configurable
+4. ~~**Validation Strictness:**~~ **RESOLVED** - Strict. Fail fast at router creation time.
 
 ## Related Specs
 

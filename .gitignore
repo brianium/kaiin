@@ -42,3 +42,8 @@ Thumbs.db
 # Project-specific
 .env
 .env.local
+
+# specs ui
+specs/index.html
+specs/_sidebar.md
+specs/.nojekyll

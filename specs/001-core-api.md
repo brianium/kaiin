@@ -1,6 +1,6 @@
 # 001: Core API and Router Generation
 
-**Status:** Draft
+**Status:** Active
 **Priority:** High
 **Dependencies:** None
 
@@ -79,18 +79,18 @@ The returned router is a standard reitit router that can be composed with other 
 ### Options Map
 
 ```clojure
-{:middleware      [...]         ;; Ring middleware for all kaiin handlers
- :data           {...}          ;; Reitit route data merged into all routes
+{:data           {...}          ;; Reitit route data merged into all routes
  :prefix         nil            ;; Path prefix (default: none, paths come from metadata)
- :default-method :post          ;; Default HTTP method (default: :post)
- :sfere-store    store}         ;; Sfere store instance for connection management
+ :default-method :post}         ;; Default HTTP method (default: :post)
 ```
+
+Note: Kaiin doesn't need system or sfere store - handlers return twk response maps with sfere effects. The twk middleware handles dispatch, and sfere's registry has the store closed over.
 
 ## Route Generation Process
 
-1. Call `(describe/describe dispatch :effects)` to get all effects
-2. Filter for effects with `::kaiin/path` metadata
-3. For each matching effect, generate a route:
+1. Call `(describe/describe dispatch :effects)` and `(describe/describe dispatch :actions)` to get all registered items
+2. Filter for items with `::kaiin/path` metadata
+3. For each matching effect or action, generate a route:
    - Path from `::kaiin/path`
    - Method from `::kaiin/method` (default `:post`)
    - Handler generated per spec 004
@@ -117,18 +117,15 @@ The returned router is a standard reitit router that can be composed with other 
 
 ## Open Questions
 
-1. **Actions vs Effects:** Should kaiin support both effects and actions, or only effects? Actions are pure and expand to effects - might make sense to only expose effects.
+1. ~~**Actions vs Effects:**~~ **RESOLVED** - Support both. From kaiin's perspective they're identical - just dispatch vectors.
 
-2. **Path Parameters:** The example shows reitit path params (`:room-id`). How do we reference these in `::kaiin/dispatch`? Proposed: `[::kaiin/path-param :room-id]` token.
+2. ~~**Path Parameters:**~~ **RESOLVED** - Use `[::kaiin/path-param :room-id]` token syntax, consistent with `[::kaiin/signal ...]`.
 
-3. **Validation:** Should kaiin validate at router creation time that `::kaiin/signals` schema covers all signal references in `::kaiin/dispatch`?
+3. ~~**Validation:**~~ **RESOLVED** - Yes, strict validation at router creation time. Fail fast on misconfigured tokens.
 
-4. **Error Responses:** What happens when effect dispatch fails? Options:
-   - Return HTTP 500
-   - Return error as twk/patch-signals
-   - Configurable error handler
+4. ~~**Error Responses:**~~ **RESOLVED** - Return HTTP 400 with error details. Runtime token resolution failures are client errors (malformed request).
 
-5. **Route Conflicts:** What if two effects have the same `::kaiin/path` and `::kaiin/method`? Fail at router creation? Last wins?
+5. ~~**Route Conflicts:**~~ **RESOLVED** - Fail at router creation. Duplicate path+method combinations are configuration errors.
 
 ## Related Specs
 

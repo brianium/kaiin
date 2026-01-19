@@ -1,6 +1,6 @@
 # 002: Registry Metadata Schema
 
-**Status:** Draft
+**Status:** Active
 **Priority:** High
 **Dependencies:** None
 
@@ -172,16 +172,13 @@ Extracts a value from reitit path parameters.
 
 ## Open Questions
 
-1. **Signal Schema Validation:** Should we validate that all `[::kaiin/signal ...]` tokens in `::kaiin/dispatch` are covered by `::kaiin/signals` schema?
+1. ~~**Signal Schema Validation:**~~ **RESOLVED** - Yes, strict validation at router creation time.
 
-2. **Path Parameter Inference:** Should we automatically infer path params from `::kaiin/path` and validate they're used correctly?
+2. ~~**Path Parameter Inference:**~~ **RESOLVED** - Yes, validate path params at router creation time.
 
-3. **Optional Signals:** How do we handle optional signal values? Should tokens support a default value?
-   ```clojure
-   [::kaiin/signal :page {:default 1}]
-   ```
+3. ~~**Optional Signals:**~~ **RESOLVED** - No default values for v1. Effect handlers can handle `nil`.
 
-4. **Type Coercion:** Should path params be coerced based on usage context? (e.g., string "123" to int 123)
+4. ~~**Type Coercion:**~~ **RESOLVED** - No coercion. Pass values as-is. Reitit has coercion middleware if needed; kaiin just passes values through.
 
 ## Related Specs
 

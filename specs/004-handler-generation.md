@@ -1,6 +1,6 @@
 # 004: Handler Generation
 
-**Status:** Draft
+**Status:** Active
 **Priority:** High
 **Dependencies:** 002-registry-metadata, 003-token-replacement, 005-sfere-integration
 
@@ -62,8 +62,10 @@ Based on whether `target-key` contains wildcards:
 
 ## Complete Generated Handler
 
+Kaiin handlers are pure data transformers - they don't need access to system or sfere store. They extract request data, replace tokens, and return a twk response map. The actual effect dispatch happens in twk's `with-datastar` middleware, and sfere's registry has the store closed over in its effects.
+
 ```clojure
-(defn generate-handler [dispatch metadata]
+(defn generate-handler [metadata]
   (fn [request]
     (let [;; Extract context
           signals (get request :signals)
@@ -79,7 +81,7 @@ Based on whether `target-key` contains wildcards:
                          [::sfere/broadcast {:pattern target-key} dispatch-vec]
                          [::sfere/with-connection target-key dispatch-vec])]
 
-      ;; Return twk response
+      ;; Return twk response - middleware handles dispatch
       {::twk/fx [sfere-effect]
        ::twk/with-open-sse? true})))
 ```
@@ -166,39 +168,34 @@ Errors during effect dispatch are handled by sandestin (returns `{:errors [...]}
 
 ## Middleware Stack
 
-The generated router should be wrapped with necessary middleware:
+Kaiin does NOT configure middleware. The application is responsible for wrapping the kaiin router with twk's `with-datastar` middleware:
 
 ```clojure
-(defn router [dispatch opts]
-  (let [routes (generate-routes dispatch opts)
-        middleware (concat
-                    [(twk/with-datastar ->sse dispatch)]  ;; Required for signals
-                    (:middleware opts []))]
-    (ring/router routes {:data {:middleware middleware}})))
+;; Application code - kaiin just returns a router
+(def kaiin-router (kaiin/router dispatch opts))
+
+;; Application wraps with twk middleware
+(def app
+  (-> (ring/ring-handler
+        (ring/router
+          [["/" {:get home-handler}]
+           ["/effects" kaiin-router]]))
+      (twk/with-datastar ->sse-response dispatch)))
 ```
 
-**Note:** The application is responsible for providing the twk middleware configuration (SSE response adapter, etc.).
+This keeps kaiin focused on route/handler generation and avoids coupling to specific HTTP servers (http-kit, ring-jetty, etc.).
 
 ## Open Questions
 
-1. **Middleware Responsibility:** Should kaiin automatically include twk middleware, or require the application to configure it?
+1. ~~**Middleware Responsibility:**~~ **RESOLVED** - Application configures twk middleware externally. Kaiin just generates handlers returning twk response maps.
 
-2. **SSE Response Adapter:** Twk needs an `->sse-response` adapter (http-kit, ring, etc.). How does kaiin get this?
-   - Option A: Require it in options map
-   - Option B: Assume application wraps kaiin router with middleware
-   - **Recommendation:** Option B - kaiin generates handlers that return twk response maps, application configures twk middleware
+2. ~~**SSE Response Adapter:**~~ **RESOLVED** - Application provides this when configuring twk middleware.
 
-3. **System Injection:** Effect dispatch needs a `system` map. How is this provided?
-   - Option A: Passed in options, stored in closure
-   - Option B: Middleware adds to request
-   - Option C: Use request itself as system (twk pattern)
+3. ~~**System Injection:**~~ **RESOLVED** - Kaiin handlers don't need the system. They return twk response maps; twk middleware constructs the system and dispatches.
 
-4. **Connection Storage:** For sfere to work, the sfere store must be accessible. Should it be:
-   - In the options map passed to `kaiin/router`
-   - In middleware
-   - In the sandestin system
+4. ~~**Connection Storage:**~~ **RESOLVED** - Kaiin handlers don't need the sfere store. The sfere registry (installed by the app) has the store closed over in its effects.
 
-5. **Response Format:** Should kaiin handlers return the twk response map directly, or should they return something kaiin-specific that gets transformed?
+5. ~~**Response Format:**~~ **RESOLVED** - Kaiin handlers return twk response maps directly (`{::twk/fx [...] ::twk/with-open-sse? true}`).
 
 ## Related Specs
 
