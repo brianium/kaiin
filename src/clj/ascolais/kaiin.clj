@@ -221,3 +221,60 @@
        (resolve-token x context)
        x))
    form))
+
+;; Sfere integration - wildcard detection
+
+(defn has-wildcard?
+  "Check if a target contains sfere wildcard characters (:*).
+   If wildcards are present, use ::sfere/broadcast. Otherwise, ::sfere/with-connection."
+  [target]
+  (some #(= :* %) (flatten target)))
+
+;; Handler generation
+
+(defn generate-handler
+  "Generate a ring handler function from kaiin metadata.
+   The handler extracts signals and path-params from the request,
+   replaces tokens, wraps in sfere dispatch, and returns a twk response."
+  [metadata]
+  (let [dispatch-template (::dispatch metadata)
+        target-template (::target metadata)
+        response-opts (::response-opts metadata)]
+    (fn [request]
+      (try
+        (let [;; Extract context from request
+              signals (get request :signals)
+              path-params (get request :path-params)
+              context {:signals signals :path-params path-params}
+
+              ;; Replace tokens
+              dispatch-vec (replace-tokens dispatch-template context)
+              target-key (replace-tokens target-template context)
+
+              ;; Wrap in sfere effect based on wildcard presence
+              sfere-effect (if (has-wildcard? target-key)
+                             [:ascolais.sfere/broadcast
+                              {:pattern target-key}
+                              dispatch-vec]
+                             [:ascolais.sfere/with-connection
+                              target-key
+                              dispatch-vec])
+
+              ;; Build response
+              base-response {:ascolais.twk/fx [sfere-effect]
+                             :ascolais.twk/with-open-sse? true}]
+
+          ;; Merge custom response options if provided
+          (if response-opts
+            (merge base-response response-opts)
+            base-response))
+
+        (catch clojure.lang.ExceptionInfo e
+          ;; Handle token resolution errors with 400 response
+          (let [data (ex-data e)]
+            (if (or (:token data) (:param data))
+              {:status 400
+               :headers {"content-type" "application/json"}
+               :body {:error (ex-message e)
+                      :details data}}
+              (throw e))))))))

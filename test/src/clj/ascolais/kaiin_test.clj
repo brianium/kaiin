@@ -269,3 +269,94 @@
   (testing "handles forms with no tokens"
     (is (= [:chat/send "hello" 123]
            (kaiin/replace-tokens [:chat/send "hello" 123] {})))))
+
+;; Wildcard detection tests
+
+(deftest has-wildcard?-test
+  (testing "detects wildcard at top level"
+    (is (kaiin/has-wildcard? [:* :*])))
+
+  (testing "detects wildcard in nested structure"
+    (is (kaiin/has-wildcard? [:* [:chat "general"]])))
+
+  (testing "returns false for no wildcards"
+    (is (not (kaiin/has-wildcard? [:scope [:chat "general"]]))))
+
+  (testing "detects deeply nested wildcard"
+    (is (kaiin/has-wildcard? [:scope [:room [:* "lobby"]]]))))
+
+;; Handler generation tests
+
+(deftest generate-handler-test
+  (testing "generates handler that returns broadcast for wildcard targets"
+    (let [metadata {::kaiin/path "/chat/:room-id/message"
+                    ::kaiin/method :post
+                    ::kaiin/signals [:map [:message :string] [:username :string]]
+                    ::kaiin/dispatch [:chat/send-message
+                                      [::kaiin/path-param :room-id]
+                                      [::kaiin/signal :username]
+                                      [::kaiin/signal :message]]
+                    ::kaiin/target [:* [:chat [::kaiin/path-param :room-id]]]}
+          handler (kaiin/generate-handler metadata)
+          request {:path-params {:room-id "general"}
+                   :signals {:message "Hello!" :username "alice"}}
+          response (handler request)]
+      (is (= {:ascolais.twk/fx [[:ascolais.sfere/broadcast
+                                 {:pattern [:* [:chat "general"]]}
+                                 [:chat/send-message "general" "alice" "Hello!"]]]
+              :ascolais.twk/with-open-sse? true}
+             response))))
+
+  (testing "generates handler that returns with-connection for non-wildcard targets"
+    (let [metadata {::kaiin/path "/user/:user-id/profile"
+                    ::kaiin/method :post
+                    ::kaiin/signals [:map [:name :string]]
+                    ::kaiin/dispatch [:user/update-profile
+                                      [::kaiin/path-param :user-id]
+                                      [::kaiin/signal :name]]
+                    ::kaiin/target [:default-scope [:user [::kaiin/path-param :user-id]]]}
+          handler (kaiin/generate-handler metadata)
+          request {:path-params {:user-id "alice"}
+                   :signals {:name "Alice Smith"}}
+          response (handler request)]
+      (is (= {:ascolais.twk/fx [[:ascolais.sfere/with-connection
+                                 [:default-scope [:user "alice"]]
+                                 [:user/update-profile "alice" "Alice Smith"]]]
+              :ascolais.twk/with-open-sse? true}
+             response))))
+
+  (testing "returns 400 for missing signal"
+    (let [metadata {::kaiin/path "/chat/message"
+                    ::kaiin/signals [:map [:message :string]]
+                    ::kaiin/dispatch [:chat/send [::kaiin/signal :message]]
+                    ::kaiin/target [:* :*]}
+          handler (kaiin/generate-handler metadata)
+          request {:path-params {}
+                   :signals {}}  ;; missing :message
+          response (handler request)]
+      (is (= 400 (:status response)))
+      (is (= "Missing signal value" (get-in response [:body :error])))))
+
+  (testing "returns 400 for missing path param"
+    (let [metadata {::kaiin/path "/chat/:room-id/message"
+                    ::kaiin/signals [:map [:message :string]]
+                    ::kaiin/dispatch [:chat/send [::kaiin/path-param :room-id]]
+                    ::kaiin/target [:* :*]}
+          handler (kaiin/generate-handler metadata)
+          request {:path-params {}  ;; missing :room-id
+                   :signals {:message "hello"}}
+          response (handler request)]
+      (is (= 400 (:status response)))
+      (is (= "Missing path parameter" (get-in response [:body :error])))))
+
+  (testing "merges custom response options"
+    (let [metadata {::kaiin/path "/chat/message"
+                    ::kaiin/signals [:map [:message :string]]
+                    ::kaiin/dispatch [:chat/send [::kaiin/signal :message]]
+                    ::kaiin/target [:* :*]
+                    ::kaiin/response-opts {:ascolais.twk/with-open-sse? false}}
+          handler (kaiin/generate-handler metadata)
+          request {:path-params {}
+                   :signals {:message "hello"}}
+          response (handler request)]
+      (is (= false (:ascolais.twk/with-open-sse? response))))))
