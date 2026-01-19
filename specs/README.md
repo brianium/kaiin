@@ -18,11 +18,11 @@ All high-level design questions have been resolved. See below for decisions.
 
 | Spec | Status | Description |
 |------|--------|-------------|
-| [001-core-api](./001-core-api.md) | Active | Primary API: `kaiin/router` function and options |
-| [002-registry-metadata](./002-registry-metadata.md) | Active | Schema for `::kaiin/*` keys in effect registrations |
-| [003-token-replacement](./003-token-replacement.md) | Active | How signal and path-param tokens are replaced |
-| [004-handler-generation](./004-handler-generation.md) | Active | Ring handler generation from effect metadata |
-| [005-sfere-integration](./005-sfere-integration.md) | Active | Target semantics for sfere broadcast/with-connection |
+| [001-core-api](./001-core-api.md) | Complete | Primary API: `kaiin/router` function and options |
+| [002-registry-metadata](./002-registry-metadata.md) | Complete | Schema for `::kaiin/*` keys in effect registrations |
+| [003-token-replacement](./003-token-replacement.md) | Complete | How signal and path-param tokens are replaced |
+| [004-handler-generation](./004-handler-generation.md) | Complete | Ring handler generation from effect metadata |
+| [005-sfere-integration](./005-sfere-integration.md) | Complete | Target semantics for sfere broadcast/with-connection |
 | [006-lobby-demo](./006-lobby-demo.md) | Active | Port of sfere lobby demo using kaiin conventions |
 
 Status values: Draft, Active, Complete, Archived
@@ -57,16 +57,16 @@ This catches configuration errors early rather than at runtime.
 
 ## Dependencies
 
-Hard dependencies (required at runtime):
-- `ascolais/twk` - Datastar effects for sandestin
-- `ascolais/sfere` - Connection management
+Hard dependencies (installed by kaiin):
+- `metosin/malli` - Schema validation for metadata
+- `metosin/reitit` - Router generation
 
-Peer dependency (installed by consuming application):
-- `ascolais/sandestin` - Effect dispatch system
+Peer dependencies (installed by consuming application):
+- `ascolais/sandestin` - Effect dispatch system (kaiin calls `describe` on dispatch)
+- `ascolais/twk` - Datastar middleware (interprets `::twk/fx` response maps)
+- `ascolais/sfere` - Connection management (interprets `::sfere/broadcast` effects)
 
-Development/test dependencies:
-- `ascolais/sandestin`
-- `metosin/reitit`
+Kaiin produces data structures with namespaced keywords (e.g., `::twk/fx`, `::sfere/broadcast`) but doesn't call functions from twk or sfere directly. The consuming application's middleware stack interprets these data structures.
 
 ## Lobby Demo
 
