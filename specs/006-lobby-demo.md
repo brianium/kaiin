@@ -8,6 +8,22 @@
 
 Port the sfere lobby demo to use kaiin conventions. This demonstrates the separation between connection establishment (custom handlers) and effect dispatch (kaiin-generated routes).
 
+## Demo Dependencies
+
+```clojure
+;; deps.edn
+{:deps {org.clojure/clojure {:mvn/version "1.12.0"}
+        ascolais/kaiin {:local/root ".."}  ;; or git coord
+        ascolais/sandestin {...}
+        ascolais/twk {...}
+        ascolais/sfere {...}
+        http-kit/http-kit {:mvn/version "2.8.0"}
+        dev.data-star.clojure/http-kit {:mvn/version "1.0.0-RC7"}  ;; SSE adapter
+        metosin/reitit {:mvn/version "0.7.2"}}}
+```
+
+Note: The `->sse-response` adapter comes from `dev.data-star.clojure/http-kit`, not from http-kit itself.
+
 ## Original Sfere Demo
 
 The sfere demo implements a real-time chat lobby with:
@@ -219,7 +235,8 @@ This is the only kaiin-generated route. The effect handler returns twk effects t
             [ascolais.kaiin :as kaiin]
             [demo.registry :refer [lobby-registry]]
             [demo.handlers :as handlers]
-            [org.httpkit.server :as hk]))
+            [org.httpkit.server :as hk]
+            [dev.data-star.adapter.http-kit :as ds-hk]))
 
 ;; Custom routes (connection establishment + complex handlers)
 (def custom-routes
@@ -247,7 +264,7 @@ This is the only kaiin-generated route. The effect handler returns twk effects t
   (-> (rr/ring-handler
        (create-router dispatch)
        (rr/create-default-handler))
-      (twk/with-datastar hk/->sse-response dispatch)))
+      (twk/with-datastar ds-hk/->sse-response dispatch)))
 
 ;; System startup
 (defn start-system []
