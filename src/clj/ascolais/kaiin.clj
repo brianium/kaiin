@@ -2,7 +2,8 @@
   (:require [malli.core :as m]
             [malli.error :as me]
             [clojure.string :as str]
-            [clojure.walk :as walk]))
+            [clojure.walk :as walk]
+            [reitit.ring :as ring]))
 
 ;; Token schemas
 ;; Tokens are placeholders in ::kaiin/dispatch and ::kaiin/target that get
@@ -345,16 +346,12 @@
      :data           - Reitit route data merged into all routes
 
    The dispatch function must have effects/actions with ::kaiin/* metadata.
-   This function requires reitit.ring at runtime.
 
    For testing without sandestin, use routes-from-metadata with a seq of
    metadata maps directly."
   ([dispatch] (router dispatch {}))
   ([dispatch opts]
-   (let [;; Dynamically require reitit to avoid hard dependency
-         reitit-router (requiring-resolve 'reitit.ring/router)
-
-         ;; Get describe function from sandestin
+   (let [;; Get describe function from sandestin
          describe (requiring-resolve 'ascolais.sandestin.describe/describe)
 
          ;; Get effects and actions with kaiin metadata
@@ -380,5 +377,5 @@
                        {:data data})]
 
      (if router-opts
-       (reitit-router routes router-opts)
-       (reitit-router routes)))))
+       (ring/router routes router-opts)
+       (ring/router routes)))))
