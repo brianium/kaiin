@@ -67,7 +67,7 @@
 
 (defn create-app
   "Create the ring handler with all middleware."
-  [store dispatch]
+  [dispatch]
   (rr/ring-handler
    (create-router dispatch)
    (rr/create-default-handler)
@@ -79,7 +79,7 @@
   ([port]
    (let [store (create-store)
          dispatch (create-dispatch store)
-         handler (create-app store dispatch)
+         handler (create-app dispatch)
          server (hk/run-server handler {:port port})]
      (alter-var-root #'system/*system*
                      (constantly {:store store
