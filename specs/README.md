@@ -8,7 +8,7 @@ This directory contains living specifications for kaiin features and concepts.
 
 Core library is complete. All specs (001-005) are implemented in `src/clj/ascolais/kaiin.clj`.
 
-**Current status:** All specs complete. Demo implemented in `dev/src/clj/demo/`.
+**Next step:** 007-effect-dispatch-before-broadcast - fix the dispatch/broadcast design mismatch discovered in the lobby demo.
 
 ## Public API
 
@@ -45,6 +45,7 @@ The main namespace `ascolais.kaiin` exports:
 | [004-handler-generation](./004-handler-generation.md) | Complete | Ring handler generation from effect metadata |
 | [005-sfere-integration](./005-sfere-integration.md) | Complete | Target semantics for sfere broadcast/with-connection |
 | [006-lobby-demo](./006-lobby-demo.md) | Complete | Port of sfere lobby demo using kaiin conventions |
+| [007-effect-dispatch-before-broadcast](./007-effect-dispatch-before-broadcast.md) | Active | Dispatch effects before broadcasting results |
 
 Status values: Draft, Active, Complete, Archived
 
