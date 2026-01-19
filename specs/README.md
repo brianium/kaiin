@@ -48,6 +48,7 @@ The main namespace `ascolais.kaiin` exports:
 | [007-action-handlers-for-broadcast](./007-action-handlers-for-broadcast.md) | Complete | Use sandestin actions (not effects) for kaiin broadcast routes |
 | [008-optional-target](./008-optional-target.md) | Complete | Optional target for direct response and complex multi-target routes |
 | [009-sfere-upgrade-on-evict](./009-sfere-upgrade-on-evict.md) | Complete | Upgrade sfere to v0.5.0, caffeine store with sliding expiry; documents on-evict limitations |
+| [010-path-param-demo](./010-path-param-demo.md) | Draft | Multi-room chat demo exercising path-param tokens |
 
 Status values: Draft, Active, Complete, Archived
 
