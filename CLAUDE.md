@@ -145,6 +145,72 @@ Clojure has two syntaxes for namespaced keywords:
 - Use `::alias/key` to reference keywords from required namespaces without typing the full name
 - Prefer `:` for spec keys, component IDs, and data that crosses namespace boundaries
 
+## Sandestin Effect System
+
+Kaiin generates HTTP routes for sandestin registries. Understanding sandestin's effect/action model is critical.
+
+### Effects vs Actions
+
+Sandestin has two types of dispatchable handlers:
+
+**Effects** - Perform side effects directly
+```clojure
+{::s/effects
+ {:my/effect
+  {::s/handler (fn [ctx sys & args]
+                 ;; ctx contains :dispatch, :sse (if in SSE context), etc.
+                 ;; sys is the sandestin system
+                 ;; Perform side effects here
+                 ;; Return value is NOT dispatched
+                 )}}}
+```
+
+**Actions** - Return effects to be dispatched
+```clojure
+{::s/actions
+ {:my/action
+  {::s/handler (fn [state & args]
+                 ;; state is result of system->state (for twk: {:signals ...})
+                 ;; NO access to ctx or sys
+                 ;; Return value IS dispatched as effects
+                 [[::twk/patch-elements [:div "hello"]]])}}}
+```
+
+### Key Differences
+
+| Aspect | Effects | Actions |
+|--------|---------|---------|
+| Handler signature | `(fn [ctx sys & args])` | `(fn [state & args])` |
+| Has dispatch access | Yes (via ctx) | No |
+| Has SSE access | Yes (via ctx) | No |
+| Return value | Ignored | Dispatched as effects |
+| Use case | Complex logic, direct side effects | Pure transformations, broadcast targets |
+
+### Kaiin and Actions
+
+Kaiin-generated routes that broadcast to connections should use **actions**:
+
+```clojure
+{::s/actions
+ {:lobby/send-message
+  {::s/handler (fn [_state username message]
+                 [[::twk/patch-elements (views/message-bubble username message)]])
+
+   ;; Kaiin metadata
+   ::kaiin/path "/message"
+   ::kaiin/target [:* [:lobby :*]]
+   ::kaiin/dispatch [:lobby/send-message
+                     [::kaiin/signal :username]
+                     [::kaiin/signal :message]]}}}
+```
+
+When sfere broadcasts `[:lobby/send-message "brian" "hello"]` to each connection:
+1. Sandestin sees it's an action
+2. Calls the handler → returns `[[::twk/patch-elements ...]]`
+3. Dispatches those effects to the connection's SSE
+
+**Rule:** If kaiin generates the route and broadcasts to connections, use `::s/actions`.
+
 ## Git Commits
 
 Use conventional commits format:
