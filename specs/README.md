@@ -8,7 +8,7 @@ This directory contains living specifications for kaiin features and concepts.
 
 Core library is complete. All specs (001-005) are implemented in `src/clj/ascolais/kaiin.clj`.
 
-**Current status:** All specs complete. Demo uses kaiin-generated `/message` route with sandestin actions.
+**Next step:** 008-optional-target - make `::kaiin/target` optional to support direct response routes (`/join`) and complex multi-target routes (`/leave`).
 
 ## Public API
 
@@ -46,6 +46,7 @@ The main namespace `ascolais.kaiin` exports:
 | [005-sfere-integration](./005-sfere-integration.md) | Complete | Target semantics for sfere broadcast/with-connection |
 | [006-lobby-demo](./006-lobby-demo.md) | Complete | Port of sfere lobby demo using kaiin conventions |
 | [007-action-handlers-for-broadcast](./007-action-handlers-for-broadcast.md) | Complete | Use sandestin actions (not effects) for kaiin broadcast routes |
+| [008-optional-target](./008-optional-target.md) | Active | Optional target for direct response and complex multi-target routes |
 
 Status values: Draft, Active, Complete, Archived
 
@@ -78,8 +79,11 @@ Kaiin produces data structures with namespaced keywords (e.g., `::twk/fx`, `::sf
 
 See [006-lobby-demo](./006-lobby-demo.md) for a working example in `dev/src/clj/demo/`.
 
-The demo demonstrates:
-- Kaiin-generated `/message` route using sandestin actions
-- Correct middleware placement (at router level, not ring-handler level)
-- Connection establishment patterns with sfere (custom handlers)
-- Composing custom routes with `kaiin/routes`
+Current route breakdown:
+| Route | Source | Notes |
+|-------|--------|-------|
+| `GET /` | Custom | Static page render |
+| `POST /join` | Custom | After 008: Kaiin (no target) |
+| `POST /sse` | Custom | Connection establishment |
+| `POST /message` | Kaiin | With target (broadcast) |
+| `POST /leave` | Custom | After 008: Kaiin (no target) |
