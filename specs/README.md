@@ -6,9 +6,9 @@ This directory contains living specifications for kaiin features and concepts.
 
 ## Implementation Status
 
-Core library is complete. All specs (001-008) are implemented in `src/clj/ascolais/kaiin.clj`.
+Core library is complete. All specs (001-009) are implemented.
 
-The demo now uses kaiin for all routes except `/` (static page) and `/sse` (connection establishment).
+The demo now uses kaiin for all routes except `/` (static page) and `/sse` (connection establishment). The demo uses sfere's caffeine store with on-evict callbacks for automatic user departure detection.
 
 ## Public API
 
@@ -47,6 +47,7 @@ The main namespace `ascolais.kaiin` exports:
 | [006-lobby-demo](./006-lobby-demo.md) | Complete | Port of sfere lobby demo using kaiin conventions |
 | [007-action-handlers-for-broadcast](./007-action-handlers-for-broadcast.md) | Complete | Use sandestin actions (not effects) for kaiin broadcast routes |
 | [008-optional-target](./008-optional-target.md) | Complete | Optional target for direct response and complex multi-target routes |
+| [009-sfere-upgrade-on-evict](./009-sfere-upgrade-on-evict.md) | Complete | Upgrade sfere to v0.4.0, use caffeine store with on-evict for user departure |
 
 Status values: Draft, Active, Complete, Archived
 
