@@ -30,7 +30,8 @@
 ;; Registry metadata schema
 
 (def metadata-schema
-  "Malli schema for kaiin metadata on effect registrations."
+  "Malli schema for kaiin metadata on effect registrations.
+   ::target is optional - when omitted, action effects go directly to caller."
   [:map
    [::path :string]
    [::method {:optional true} :keyword]
@@ -38,7 +39,7 @@
                #(and (vector? %)
                      (= :map (first %)))]]
    [::dispatch [:vector :any]]
-   [::target [:vector :any]]])
+   [::target {:optional true} [:vector :any]]])
 
 ;; Path parameter extraction
 
@@ -130,12 +131,14 @@
 
 (defn validate-signal-tokens
   "Validate that all signal tokens reference keys extractable from the signals schema.
+   Only validates target tokens if ::target is present.
    Returns nil if valid, or a vector of error maps if invalid."
   [metadata]
   (let [signals (::signals metadata)
         signal-keys (extract-signal-keys signals)
         dispatch-tokens (extract-tokens (::dispatch metadata))
-        target-tokens (extract-tokens (::target metadata))
+        target-tokens (when (::target metadata)
+                        (extract-tokens (::target metadata)))
         signal-tokens (concat (:signal-tokens dispatch-tokens)
                               (:signal-tokens target-tokens))]
     (when-let [errors (seq
@@ -148,12 +151,14 @@
 
 (defn validate-path-param-tokens
   "Validate that all path-param tokens reference params in the path.
+   Only validates target tokens if ::target is present.
    Returns nil if valid, or a vector of error maps if invalid."
   [metadata]
   (let [path (::path metadata)
         path-params (extract-path-params path)
         dispatch-tokens (extract-tokens (::dispatch metadata))
-        target-tokens (extract-tokens (::target metadata))
+        target-tokens (when (::target metadata)
+                        (extract-tokens (::target metadata)))
         path-param-tokens (concat (:path-param-tokens dispatch-tokens)
                                   (:path-param-tokens target-tokens))]
     (when-let [errors (seq
@@ -237,8 +242,11 @@
 (defn generate-handler
   "Generate a ring handler function from kaiin metadata.
    The handler extracts signals and path-params from the request,
-   replaces tokens, wraps in sfere dispatch, and returns a twk response."
-  [metadata]
+   replaces tokens, and returns a twk response.
+
+   When ::target is present: wraps dispatch vector in sfere effect.
+   When ::target is nil: dispatches action and returns its effects directly."
+  [dispatch metadata]
   (let [dispatch-template (::dispatch metadata)
         target-template (::target metadata)
         response-opts (::response-opts metadata)]
@@ -249,22 +257,27 @@
               path-params (get request :path-params)
               context {:signals signals :path-params path-params}
 
-              ;; Replace tokens
+              ;; Replace tokens in dispatch vector
               dispatch-vec (replace-tokens dispatch-template context)
-              target-key (replace-tokens target-template context)
 
-              ;; Wrap in sfere effect based on wildcard presence
-              sfere-effect (if (has-wildcard? target-key)
-                             [:ascolais.sfere/broadcast
-                              {:pattern target-key}
-                              dispatch-vec]
-                             [:ascolais.sfere/with-connection
-                              target-key
-                              dispatch-vec])
+              ;; Build response based on whether target is specified
+              base-response
+              (if target-template
+                ;; With target: wrap in sfere effect (broadcast or with-connection)
+                (let [target-key (replace-tokens target-template context)
+                      sfere-effect (if (has-wildcard? target-key)
+                                     [:ascolais.sfere/broadcast
+                                      {:pattern target-key}
+                                      dispatch-vec]
+                                     [:ascolais.sfere/with-connection
+                                      target-key
+                                      dispatch-vec])]
+                  {:ascolais.twk/fx [sfere-effect]
+                   :ascolais.twk/with-open-sse? true})
 
-              ;; Build response
-              base-response {:ascolais.twk/fx [sfere-effect]
-                             :ascolais.twk/with-open-sse? true}]
+                ;; No target: return dispatch vector as effect for twk to dispatch
+                {:ascolais.twk/fx [dispatch-vec]
+                 :ascolais.twk/with-open-sse? true})]
 
           ;; Merge custom response options if provided
           (if response-opts
@@ -301,10 +314,10 @@
 (defn metadata->route
   "Convert validated kaiin metadata to a reitit route definition.
    Returns [path {method {:handler handler}}]."
-  [metadata]
+  [dispatch metadata]
   (let [path (::path metadata)
         method (or (::method metadata) :post)
-        handler (generate-handler metadata)]
+        handler (generate-handler dispatch metadata)]
     [path {method {:handler handler}}]))
 
 (defn- detect-route-conflicts
@@ -325,12 +338,14 @@
 (defn routes-from-metadata
   "Generate reitit routes from a sequence of kaiin metadata maps.
    Validates all metadata and detects route conflicts.
-   Returns a vector of reitit route definitions."
-  [metadata-seq]
+   Returns a vector of reitit route definitions.
+
+   dispatch is required for no-target routes (to dispatch actions at request time)."
+  [dispatch metadata-seq]
   (let [routes (for [metadata metadata-seq]
                  (do
                    (validate-metadata metadata)
-                   (metadata->route metadata)))]
+                   (metadata->route dispatch metadata)))]
     (detect-route-conflicts routes)
     (vec routes)))
 
@@ -367,7 +382,7 @@
                         metadata-seq)]
 
      ;; Generate and return routes
-     (routes-from-metadata metadata-seq))))
+     (routes-from-metadata dispatch metadata-seq))))
 
 (defn router
   "Generate a reitit router from a sandestin dispatch function.

@@ -1,6 +1,6 @@
 # 008: Optional Target (Direct Response Routes)
 
-**Status:** Active
+**Status:** Complete
 **Priority:** High
 **Dependencies:** 007-action-handlers-for-broadcast
 
@@ -117,7 +117,7 @@ The twk middleware dispatches each effect, including the sfere effects.
 ### Handler Generation
 
 ```clojure
-(defn generate-handler [metadata]
+(defn generate-handler [dispatch metadata]
   (let [dispatch-template (::dispatch metadata)
         target-template (::target metadata)  ;; May be nil
         response-opts (::response-opts metadata)]
@@ -127,7 +127,7 @@ The twk middleware dispatches each effect, including the sfere effects.
             dispatch-vec (replace-tokens dispatch-template context)]
 
         (if target-template
-          ;; With target: wrap in sfere (current behavior)
+          ;; With target: wrap in sfere effect
           (let [target-key (replace-tokens target-template context)
                 sfere-effect (if (has-wildcard? target-key)
                                [::sfere/broadcast {:pattern target-key} dispatch-vec]
@@ -135,41 +135,16 @@ The twk middleware dispatches each effect, including the sfere effects.
             {::twk/fx [sfere-effect]
              ::twk/with-open-sse? true})
 
-          ;; No target: dispatch action, return its effects directly
-          ;; Note: This requires dispatching at request time
-          (let [dispatch (:dispatch request)  ;; From middleware
-                result (dispatch dispatch-vec)
-                effects (:result result)]
-            {::twk/fx (vec effects)
-             ::twk/with-open-sse? true}))))))
+          ;; No target: return dispatch vector as effect for twk to dispatch
+          {::twk/fx [dispatch-vec]
+           ::twk/with-open-sse? true})))))
 ```
 
-### Key Change: Dispatch at Request Time
+### Key Insight: Let TWK Handle Dispatch
 
-For no-target routes, we need to dispatch the action at request time to get its returned effects. This requires:
+Kaiin doesn't dispatch at request time. Instead, it returns the dispatch vector as an effect in `::twk/fx`. The twk middleware then dispatches the effect, which sandestin handles by running the action and returning its effects to the caller's SSE connection.
 
-1. Dispatch function available in request (via middleware)
-2. Handler calls dispatch and extracts `:result`
-
-This is different from target routes where sfere dispatches the action to each connection.
-
-### Middleware Injection
-
-The twk `with-datastar` middleware already provides dispatch. We may need to ensure it's available as `:dispatch` in the request, or kaiin could close over it at router creation time.
-
-**Option A:** Middleware adds `:dispatch` to request
-```clojure
-;; twk/with-datastar already does something like this
-(assoc request :dispatch dispatch)
-```
-
-**Option B:** Close over dispatch in handler
-```clojure
-(defn generate-handler [dispatch metadata]  ;; dispatch passed in
-  ...)
-```
-
-Option B is cleaner - kaiin already receives dispatch for introspection.
+This is consistent with the with-target case where we return a sfere effect and let twk dispatch it.
 
 ## Metadata Schema Update
 

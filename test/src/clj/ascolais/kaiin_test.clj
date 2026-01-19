@@ -285,6 +285,15 @@
   (testing "detects deeply nested wildcard"
     (is (kaiin/has-wildcard? [:scope [:room [:* "lobby"]]]))))
 
+;; Mock dispatch for handler tests
+
+(defn mock-dispatch
+  "Mock sandestin dispatch for testing.
+   Returns {:result [effects]} where effects are the dispatch vector args."
+  [dispatch-vec]
+  ;; Return the dispatch vector as effects for testing purposes
+  {:result [dispatch-vec]})
+
 ;; Handler generation tests
 
 (deftest generate-handler-test
@@ -297,7 +306,7 @@
                                       [::kaiin/signal :username]
                                       [::kaiin/signal :message]]
                     ::kaiin/target [:* [:chat [::kaiin/path-param :room-id]]]}
-          handler (kaiin/generate-handler metadata)
+          handler (kaiin/generate-handler mock-dispatch metadata)
           request {:path-params {:room-id "general"}
                    :signals {:message "Hello!" :username "alice"}}
           response (handler request)]
@@ -315,7 +324,7 @@
                                       [::kaiin/path-param :user-id]
                                       [::kaiin/signal :name]]
                     ::kaiin/target [:default-scope [:user [::kaiin/path-param :user-id]]]}
-          handler (kaiin/generate-handler metadata)
+          handler (kaiin/generate-handler mock-dispatch metadata)
           request {:path-params {:user-id "alice"}
                    :signals {:name "Alice Smith"}}
           response (handler request)]
@@ -330,7 +339,7 @@
                     ::kaiin/signals [:map [:message :string]]
                     ::kaiin/dispatch [:chat/send [::kaiin/signal :message]]
                     ::kaiin/target [:* :*]}
-          handler (kaiin/generate-handler metadata)
+          handler (kaiin/generate-handler mock-dispatch metadata)
           request {:path-params {}
                    :signals {}}  ;; missing :message
           response (handler request)]
@@ -342,7 +351,7 @@
                     ::kaiin/signals [:map [:message :string]]
                     ::kaiin/dispatch [:chat/send [::kaiin/path-param :room-id]]
                     ::kaiin/target [:* :*]}
-          handler (kaiin/generate-handler metadata)
+          handler (kaiin/generate-handler mock-dispatch metadata)
           request {:path-params {}  ;; missing :room-id
                    :signals {:message "hello"}}
           response (handler request)]
@@ -355,11 +364,39 @@
                     ::kaiin/dispatch [:chat/send [::kaiin/signal :message]]
                     ::kaiin/target [:* :*]
                     ::kaiin/response-opts {:ascolais.twk/with-open-sse? false}}
-          handler (kaiin/generate-handler metadata)
+          handler (kaiin/generate-handler mock-dispatch metadata)
           request {:path-params {}
                    :signals {:message "hello"}}
           response (handler request)]
-      (is (= false (:ascolais.twk/with-open-sse? response))))))
+      (is (= false (:ascolais.twk/with-open-sse? response)))))
+
+  (testing "no-target: returns dispatch vector for twk to dispatch"
+    (let [metadata {::kaiin/path "/join"
+                    ::kaiin/signals [:map [:username :string]]
+                    ::kaiin/dispatch [:lobby/join [::kaiin/signal :username]]}
+                    ;; No ::kaiin/target
+          handler (kaiin/generate-handler mock-dispatch metadata)
+          request {:path-params {}
+                   :signals {:username "alice"}}
+          response (handler request)]
+      ;; Handler returns the dispatch vector as an effect - twk middleware dispatches it
+      (is (= {:ascolais.twk/fx [[:lobby/join "alice"]]
+              :ascolais.twk/with-open-sse? true}
+             response))))
+
+  (testing "no-target: replaces tokens in dispatch vector"
+    (let [metadata {::kaiin/path "/leave/:room-id"
+                    ::kaiin/signals [:map [:username :string]]
+                    ::kaiin/dispatch [:lobby/leave
+                                      [::kaiin/path-param :room-id]
+                                      [::kaiin/signal :username]]}
+          handler (kaiin/generate-handler mock-dispatch metadata)
+          request {:path-params {:room-id "general"}
+                   :signals {:username "alice"}}
+          response (handler request)]
+      (is (= {:ascolais.twk/fx [[:lobby/leave "general" "alice"]]
+              :ascolais.twk/with-open-sse? true}
+             response)))))
 
 ;; Route generation tests
 
@@ -396,7 +433,7 @@
                     ::kaiin/signals [:map [:message :string]]
                     ::kaiin/dispatch [:chat/send [::kaiin/signal :message]]
                     ::kaiin/target [:* :*]}
-          [path method-map] (kaiin/metadata->route metadata)]
+          [path method-map] (kaiin/metadata->route mock-dispatch metadata)]
       (is (= "/chat/message" path))
       (is (contains? method-map :post))
       (is (fn? (get-in method-map [:post :handler])))))
@@ -407,7 +444,7 @@
                     ::kaiin/signals [:map [:confirm :boolean]]
                     ::kaiin/dispatch [:items/delete [::kaiin/path-param :id]]
                     ::kaiin/target [:* :*]}
-          [path method-map] (kaiin/metadata->route metadata)]
+          [path method-map] (kaiin/metadata->route mock-dispatch metadata)]
       (is (= "/items/:id" path))
       (is (contains? method-map :delete)))))
 
@@ -422,7 +459,7 @@
                          ::kaiin/signals [:map [:name :string]]
                          ::kaiin/dispatch [:user/update [::kaiin/signal :name]]
                          ::kaiin/target [:* :*]}]
-          routes (kaiin/routes-from-metadata metadata-seq)]
+          routes (kaiin/routes-from-metadata mock-dispatch metadata-seq)]
       (is (= 2 (count routes)))
       (is (= "/chat/message" (first (first routes))))
       (is (= "/user/profile" (first (second routes))))))
@@ -431,15 +468,16 @@
     (is (thrown-with-msg?
          clojure.lang.ExceptionInfo
          #"Invalid kaiin metadata"
-         (kaiin/routes-from-metadata [{::kaiin/path "/bad"
-                                       ;; missing required keys
-                                       }]))))
+         (kaiin/routes-from-metadata mock-dispatch [{::kaiin/path "/bad"
+                                                      ;; missing required keys
+                                                     }]))))
 
   (testing "throws on route conflicts"
     (is (thrown-with-msg?
          clojure.lang.ExceptionInfo
          #"Route conflict"
          (kaiin/routes-from-metadata
+          mock-dispatch
           [{::kaiin/path "/same/path"
             ::kaiin/signals [:map [:a :string]]
             ::kaiin/dispatch [:effect/a [::kaiin/signal :a]]
@@ -451,6 +489,7 @@
 
   (testing "allows same path with different methods"
     (let [routes (kaiin/routes-from-metadata
+                  mock-dispatch
                   [{::kaiin/path "/resource"
                     ::kaiin/method :get
                     ::kaiin/signals [:map [:id :string]]
@@ -461,4 +500,12 @@
                     ::kaiin/signals [:map [:data :string]]
                     ::kaiin/dispatch [:resource/create [::kaiin/signal :data]]
                     ::kaiin/target [:* :*]}])]
-      (is (= 2 (count routes))))))
+      (is (= 2 (count routes)))))
+
+  (testing "accepts metadata without target (optional target)"
+    (let [metadata-seq [{::kaiin/path "/join"
+                         ::kaiin/signals [:map [:username :string]]
+                         ::kaiin/dispatch [:lobby/join [::kaiin/signal :username]]}]
+          routes (kaiin/routes-from-metadata mock-dispatch metadata-seq)]
+      (is (= 1 (count routes)))
+      (is (= "/join" (first (first routes)))))))
