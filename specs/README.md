@@ -4,15 +4,36 @@ This directory contains living specifications for kaiin features and concepts.
 
 **Project Objective:** Adding HTTP interfaces to effects in Sandestin registries. Given a sandestin dispatch function, produce a reitit router for use in a web application.
 
-## Current Priorities
+## Implementation Status
 
-1. **002-registry-metadata** - Foundation for all other specs
-2. **003-token-replacement** - Core mechanism for dynamic dispatch
-3. **004-handler-generation** - Ties everything together
-4. **001-core-api** - Public API surface
-5. **005-sfere-integration** - Connection dispatch semantics
+Core library is complete. All specs (001-005) are implemented in `src/clj/ascolais/kaiin.clj`.
 
-All high-level design questions have been resolved. See below for decisions.
+**Next step:** 006-lobby-demo - a working example demonstrating kaiin with sfere/twk.
+
+## Public API
+
+The main namespace `ascolais.kaiin` exports:
+
+```clojure
+;; Primary entry point
+(kaiin/router dispatch)
+(kaiin/router dispatch {:prefix "/api"})
+
+;; For testing without sandestin
+(kaiin/routes-from-metadata metadata-seq)
+
+;; Metadata keys for effect registrations
+::kaiin/path      ;; HTTP path, e.g., "/chat/:room-id/message"
+::kaiin/method    ;; HTTP method (default :post)
+::kaiin/signals   ;; Malli map schema for Datastar signals
+::kaiin/dispatch  ;; Effect vector with token placeholders
+::kaiin/target    ;; Sfere connection key pattern
+
+;; Token types for dispatch/target
+[::kaiin/signal :key]           ;; Extract from signals
+[::kaiin/signal [:nested :key]] ;; Nested signal path
+[::kaiin/path-param :param]     ;; Extract from path params
+```
 
 ## Spec Index
 
@@ -27,33 +48,17 @@ All high-level design questions have been resolved. See below for decisions.
 
 Status values: Draft, Active, Complete, Archived
 
-## High-Level Open Questions
+## Key Design Decisions
 
-These questions span multiple specs and need resolution before implementation:
+1. **Middleware Configuration** - Kaiin generates handlers returning twk response maps (`{::twk/fx [...] ::twk/with-open-sse? true}`). Application wraps router with `twk/with-datastar` middleware.
 
-### 1. Middleware Configuration - RESOLVED
+2. **No System/Store Injection** - Kaiin handlers don't need system or sfere store. They return data; twk middleware handles dispatch.
 
-**Decision:** Option A - Kaiin generates handlers that return twk response maps (`{::twk/fx [...] ::twk/with-open-sse? true}`). The application is responsible for wrapping the router with `twk/with-datastar` middleware. This keeps kaiin focused on route generation and avoids coupling to specific HTTP servers.
+3. **Strict Validation** - Fail fast at router creation time if tokens reference invalid signals or path params.
 
-### 2. System/Store Injection - RESOLVED
+4. **Connection Establishment** - Application responsibility. Kaiin only generates dispatch routes. Routes returning `::sfere/key` are custom handlers.
 
-**Decision:** Kaiin handlers don't need access to system or sfere store. They return twk response maps with sfere effects - the actual dispatch happens in twk middleware which constructs the system, and sfere's registry has the store closed over in its effects. Kaiin is purely about route generation and response shaping.
-
-### 3. Actions vs Effects - RESOLVED
-
-**Decision:** Support both. From kaiin's perspective, there's no difference - both are dispatch vectors wrapped in sfere effects. Sandestin handles action expansion internally. Kaiin inspects both `(describe dispatch :effects)` and `(describe dispatch :actions)` for `::kaiin/*` metadata.
-
-### 4. Validation Strictness - RESOLVED
-
-**Decision:** Strict. Fail fast at router creation time if:
-- `[::kaiin/signal :foo]` references a key not extractable from `::kaiin/signals` schema
-- `[::kaiin/path-param :bar]` references a param not in `::kaiin/path`
-
-This catches configuration errors early rather than at runtime.
-
-### 5. Connection Establishment - RESOLVED
-
-**Decision:** Option A - Pure application responsibility. Kaiin only generates dispatch routes (which return `::twk/with-open-sse? true`). Connection establishment routes that return `::sfere/key` are a separate concern and written by the application.
+5. **Wildcard Detection** - If `::kaiin/target` contains `:*`, use `::sfere/broadcast`. Otherwise, `::sfere/with-connection`.
 
 ## Dependencies
 
@@ -66,8 +71,11 @@ Peer dependencies (installed by consuming application):
 - `ascolais/twk` - Datastar middleware (interprets `::twk/fx` response maps)
 - `ascolais/sfere` - Connection management (interprets `::sfere/broadcast` effects)
 
-Kaiin produces data structures with namespaced keywords (e.g., `::twk/fx`, `::sfere/broadcast`) but doesn't call functions from twk or sfere directly. The consuming application's middleware stack interprets these data structures.
+Kaiin produces data structures with namespaced keywords (e.g., `::twk/fx`, `::sfere/broadcast`) but doesn't call functions from twk or sfere directly.
 
 ## Lobby Demo
 
-See [006-lobby-demo](./006-lobby-demo.md) for the complete port of the sfere lobby demo using kaiin conventions.
+See [006-lobby-demo](./006-lobby-demo.md) for a complete working example. The demo shows:
+- Which routes kaiin generates (simple broadcast patterns)
+- Which routes stay custom (connection establishment, complex multi-target handlers)
+- How to compose kaiin router with custom routes
