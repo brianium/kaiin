@@ -8,7 +8,7 @@ This directory contains living specifications for kaiin features and concepts.
 
 Core library is complete. All specs (001-005) are implemented in `src/clj/ascolais/kaiin.clj`.
 
-**Next step:** 006-lobby-demo - a working example demonstrating kaiin with sfere/twk.
+**Current status:** All specs complete. Demo implemented in `dev/src/clj/demo/`.
 
 ## Public API
 
@@ -44,7 +44,7 @@ The main namespace `ascolais.kaiin` exports:
 | [003-token-replacement](./003-token-replacement.md) | Complete | How signal and path-param tokens are replaced |
 | [004-handler-generation](./004-handler-generation.md) | Complete | Ring handler generation from effect metadata |
 | [005-sfere-integration](./005-sfere-integration.md) | Complete | Target semantics for sfere broadcast/with-connection |
-| [006-lobby-demo](./006-lobby-demo.md) | Active | Port of sfere lobby demo using kaiin conventions |
+| [006-lobby-demo](./006-lobby-demo.md) | Complete | Port of sfere lobby demo using kaiin conventions |
 
 Status values: Draft, Active, Complete, Archived
 
@@ -75,7 +75,14 @@ Kaiin produces data structures with namespaced keywords (e.g., `::twk/fx`, `::sf
 
 ## Lobby Demo
 
-See [006-lobby-demo](./006-lobby-demo.md) for a complete working example. The demo shows:
-- Which routes kaiin generates (simple broadcast patterns)
-- Which routes stay custom (connection establishment, complex multi-target handlers)
-- How to compose kaiin router with custom routes
+See [006-lobby-demo](./006-lobby-demo.md) for a complete working example in `dev/src/clj/demo/`.
+
+**Key finding:** During implementation, we discovered that kaiin's current design broadcasts raw dispatch vectors (e.g., `[:lobby/send-message ...]`) but sfere expects direct twk effects (e.g., `[::twk/patch-elements ...]`). As a result, all demo routes are custom handlers.
+
+The demo still demonstrates:
+- How to compose custom routes with `kaiin/routes` (even though no kaiin routes are used)
+- Correct middleware placement (at router level, not ring-handler level)
+- Connection establishment patterns with sfere
+- Real-time broadcasting with twk/sfere
+
+**Future consideration:** Kaiin could be enhanced to support "effect-returning effects" where handler output is dispatched before being broadcast.
