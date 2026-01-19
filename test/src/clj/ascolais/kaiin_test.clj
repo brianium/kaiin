@@ -360,3 +360,105 @@
                    :signals {:message "hello"}}
           response (handler request)]
       (is (= false (:ascolais.twk/with-open-sse? response))))))
+
+;; Route generation tests
+
+(deftest has-kaiin-metadata?-test
+  (testing "returns true for items with ::path"
+    (is (kaiin/has-kaiin-metadata? {::kaiin/path "/chat"})))
+
+  (testing "returns false for items without ::path"
+    (is (not (kaiin/has-kaiin-metadata? {:some/other-key "value"})))))
+
+(deftest extract-kaiin-metadata-test
+  (testing "extracts only kaiin namespaced keys"
+    (let [item {:ascolais.sandestin/key :chat/send
+                :ascolais.sandestin/type :effect
+                ::kaiin/path "/chat/message"
+                ::kaiin/method :post
+                ::kaiin/signals [:map [:message :string]]
+                ::kaiin/dispatch [:chat/send]
+                ::kaiin/target [:* :*]}
+          result (kaiin/extract-kaiin-metadata item)]
+      (is (= {::kaiin/path "/chat/message"
+              ::kaiin/method :post
+              ::kaiin/signals [:map [:message :string]]
+              ::kaiin/dispatch [:chat/send]
+              ::kaiin/target [:* :*]}
+             result))))
+
+  (testing "returns empty map for items with no kaiin keys"
+    (is (= {} (kaiin/extract-kaiin-metadata {:foo/bar "baz"})))))
+
+(deftest metadata->route-test
+  (testing "creates route with default method :post"
+    (let [metadata {::kaiin/path "/chat/message"
+                    ::kaiin/signals [:map [:message :string]]
+                    ::kaiin/dispatch [:chat/send [::kaiin/signal :message]]
+                    ::kaiin/target [:* :*]}
+          [path method-map] (kaiin/metadata->route metadata)]
+      (is (= "/chat/message" path))
+      (is (contains? method-map :post))
+      (is (fn? (get-in method-map [:post :handler])))))
+
+  (testing "uses specified method"
+    (let [metadata {::kaiin/path "/items/:id"
+                    ::kaiin/method :delete
+                    ::kaiin/signals [:map [:confirm :boolean]]
+                    ::kaiin/dispatch [:items/delete [::kaiin/path-param :id]]
+                    ::kaiin/target [:* :*]}
+          [path method-map] (kaiin/metadata->route metadata)]
+      (is (= "/items/:id" path))
+      (is (contains? method-map :delete)))))
+
+(deftest routes-from-metadata-test
+  (testing "generates routes from metadata sequence"
+    (let [metadata-seq [{::kaiin/path "/chat/message"
+                         ::kaiin/signals [:map [:message :string]]
+                         ::kaiin/dispatch [:chat/send [::kaiin/signal :message]]
+                         ::kaiin/target [:* :*]}
+                        {::kaiin/path "/user/profile"
+                         ::kaiin/method :put
+                         ::kaiin/signals [:map [:name :string]]
+                         ::kaiin/dispatch [:user/update [::kaiin/signal :name]]
+                         ::kaiin/target [:* :*]}]
+          routes (kaiin/routes-from-metadata metadata-seq)]
+      (is (= 2 (count routes)))
+      (is (= "/chat/message" (first (first routes))))
+      (is (= "/user/profile" (first (second routes))))))
+
+  (testing "throws on invalid metadata"
+    (is (thrown-with-msg?
+         clojure.lang.ExceptionInfo
+         #"Invalid kaiin metadata"
+         (kaiin/routes-from-metadata [{::kaiin/path "/bad"
+                                       ;; missing required keys
+                                       }]))))
+
+  (testing "throws on route conflicts"
+    (is (thrown-with-msg?
+         clojure.lang.ExceptionInfo
+         #"Route conflict"
+         (kaiin/routes-from-metadata
+          [{::kaiin/path "/same/path"
+            ::kaiin/signals [:map [:a :string]]
+            ::kaiin/dispatch [:effect/a [::kaiin/signal :a]]
+            ::kaiin/target [:* :*]}
+           {::kaiin/path "/same/path"  ;; duplicate
+            ::kaiin/signals [:map [:b :string]]
+            ::kaiin/dispatch [:effect/b [::kaiin/signal :b]]
+            ::kaiin/target [:* :*]}]))))
+
+  (testing "allows same path with different methods"
+    (let [routes (kaiin/routes-from-metadata
+                  [{::kaiin/path "/resource"
+                    ::kaiin/method :get
+                    ::kaiin/signals [:map [:id :string]]
+                    ::kaiin/dispatch [:resource/get [::kaiin/signal :id]]
+                    ::kaiin/target [:* :*]}
+                   {::kaiin/path "/resource"
+                    ::kaiin/method :post
+                    ::kaiin/signals [:map [:data :string]]
+                    ::kaiin/dispatch [:resource/create [::kaiin/signal :data]]
+                    ::kaiin/target [:* :*]}])]
+      (is (= 2 (count routes))))))

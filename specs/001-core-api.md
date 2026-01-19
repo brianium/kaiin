@@ -1,6 +1,6 @@
 # 001: Core API and Router Generation
 
-**Status:** Active
+**Status:** Complete
 **Priority:** High
 **Dependencies:** None
 

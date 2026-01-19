@@ -278,3 +278,107 @@
                :body {:error (ex-message e)
                       :details data}}
               (throw e))))))))
+
+;; Route generation
+
+(defn has-kaiin-metadata?
+  "Check if a described item has kaiin metadata (::path key)."
+  [item]
+  (contains? item ::path))
+
+(defn extract-kaiin-metadata
+  "Extract kaiin metadata keys from a described sandestin item.
+   Returns a map with just the ::kaiin/* keys."
+  [item]
+  (into {}
+        (filter (fn [[k _]]
+                  (and (keyword? k)
+                       (= "ascolais.kaiin" (namespace k))))
+                item)))
+
+(defn metadata->route
+  "Convert validated kaiin metadata to a reitit route definition.
+   Returns [path {method {:handler handler}}]."
+  [metadata]
+  (let [path (::path metadata)
+        method (or (::method metadata) :post)
+        handler (generate-handler metadata)]
+    [path {method {:handler handler}}]))
+
+(defn- detect-route-conflicts
+  "Detect duplicate path+method combinations in routes.
+   Returns nil if no conflicts, or throws with conflict details."
+  [routes]
+  (let [path-methods (for [[path method-map] routes
+                           method (keys method-map)]
+                       [path method])
+        conflicts (->> path-methods
+                       frequencies
+                       (filter (fn [[_ count]] (> count 1)))
+                       keys)]
+    (when (seq conflicts)
+      (throw (ex-info "Route conflict: duplicate path+method combinations"
+                      {:conflicts (vec conflicts)})))))
+
+(defn routes-from-metadata
+  "Generate reitit routes from a sequence of kaiin metadata maps.
+   Validates all metadata and detects route conflicts.
+   Returns a vector of reitit route definitions."
+  [metadata-seq]
+  (let [routes (for [metadata metadata-seq]
+                 (do
+                   (validate-metadata metadata)
+                   (metadata->route metadata)))]
+    (detect-route-conflicts routes)
+    (vec routes)))
+
+(defn router
+  "Generate a reitit router from a sandestin dispatch function.
+
+   Usage:
+     (kaiin/router dispatch)
+     (kaiin/router dispatch {:prefix \"/api\"})
+
+   Options:
+     :prefix         - Path prefix for all generated routes (default: nil)
+     :default-method - Default HTTP method when not specified (default: :post)
+     :data           - Reitit route data merged into all routes
+
+   The dispatch function must have effects/actions with ::kaiin/* metadata.
+   This function requires reitit.ring at runtime.
+
+   For testing without sandestin, use routes-from-metadata with a seq of
+   metadata maps directly."
+  ([dispatch] (router dispatch {}))
+  ([dispatch opts]
+   (let [;; Dynamically require reitit to avoid hard dependency
+         reitit-router (requiring-resolve 'reitit.ring/router)
+
+         ;; Get describe function from sandestin
+         describe (requiring-resolve 'ascolais.sandestin.describe/describe)
+
+         ;; Get effects and actions with kaiin metadata
+         effects (filter has-kaiin-metadata? (describe dispatch :effects))
+         actions (filter has-kaiin-metadata? (describe dispatch :actions))
+         all-items (concat effects actions)
+
+         ;; Extract kaiin metadata from each item
+         metadata-seq (map extract-kaiin-metadata all-items)
+
+         ;; Apply prefix if specified
+         prefix (get opts :prefix)
+         metadata-seq (if prefix
+                        (map #(update % ::path (fn [p] (str prefix p)))
+                             metadata-seq)
+                        metadata-seq)
+
+         ;; Generate routes
+         routes (routes-from-metadata metadata-seq)
+
+         ;; Build reitit router options
+         router-opts (when-let [data (:data opts)]
+                       {:data data})]
+
+     (if router-opts
+       (reitit-router routes router-opts)
+       (reitit-router routes)))))
