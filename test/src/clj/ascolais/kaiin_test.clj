@@ -191,3 +191,81 @@
            ::kaiin/signals [:map [:message :string]]
            ::kaiin/dispatch [:chat/send [::kaiin/path-param :room-id]]
            ::kaiin/target [:* :*]})))))
+
+;; Token resolution tests
+
+(deftest resolve-token-test
+  (testing "resolves signal token with keyword path"
+    (is (= "hello"
+           (kaiin/resolve-token [::kaiin/signal :message]
+                                {:signals {:message "hello"}}))))
+
+  (testing "resolves signal token with vector path"
+    (is (= "Alice"
+           (kaiin/resolve-token [::kaiin/signal [:user :name]]
+                                {:signals {:user {:name "Alice"}}}))))
+
+  (testing "resolves path-param token"
+    (is (= "general"
+           (kaiin/resolve-token [::kaiin/path-param :room-id]
+                                {:path-params {:room-id "general"}}))))
+
+  (testing "throws on missing signal value"
+    (is (thrown-with-msg?
+         clojure.lang.ExceptionInfo
+         #"Missing signal value"
+         (kaiin/resolve-token [::kaiin/signal :missing]
+                              {:signals {:message "hello"}}))))
+
+  (testing "throws on missing path param"
+    (is (thrown-with-msg?
+         clojure.lang.ExceptionInfo
+         #"Missing path parameter"
+         (kaiin/resolve-token [::kaiin/path-param :missing]
+                              {:path-params {:room-id "general"}})))))
+
+;; Token replacement tests
+
+(deftest replace-tokens-test
+  (testing "replaces tokens in dispatch vector"
+    (is (= [:chat/send-message "general" "Hello, world!"]
+           (kaiin/replace-tokens
+            [:chat/send-message
+             [::kaiin/path-param :room-id]
+             [::kaiin/signal :message]]
+            {:signals {:message "Hello, world!"}
+             :path-params {:room-id "general"}}))))
+
+  (testing "replaces tokens in target vector"
+    (is (= [:* [:chat "general"]]
+           (kaiin/replace-tokens
+            [:* [:chat [::kaiin/path-param :room-id]]]
+            {:path-params {:room-id "general"}}))))
+
+  (testing "replaces nested signal paths"
+    (is (= [:user/update "sess-123"]
+           (kaiin/replace-tokens
+            [:user/update [::kaiin/signal [:session :id]]]
+            {:signals {:session {:id "sess-123"}}}))))
+
+  (testing "replaces deeply nested tokens"
+    (is (= [:scope [:room "lobby" "sess-123"]]
+           (kaiin/replace-tokens
+            [:scope [:room
+                     [::kaiin/path-param :room-id]
+                     [::kaiin/signal [:session :id]]]]
+            {:signals {:session {:id "sess-123"}}
+             :path-params {:room-id "lobby"}}))))
+
+  (testing "preserves non-token values"
+    (is (= [:chat/send "static" "general" 123]
+           (kaiin/replace-tokens
+            [:chat/send "static" [::kaiin/path-param :room-id] 123]
+            {:path-params {:room-id "general"}}))))
+
+  (testing "handles empty forms"
+    (is (= [] (kaiin/replace-tokens [] {}))))
+
+  (testing "handles forms with no tokens"
+    (is (= [:chat/send "hello" 123]
+           (kaiin/replace-tokens [:chat/send "hello" 123] {})))))

@@ -1,7 +1,8 @@
 (ns ascolais.kaiin
   (:require [malli.core :as m]
             [malli.error :as me]
-            [clojure.string :as str]))
+            [clojure.string :as str]
+            [clojure.walk :as walk]))
 
 ;; Token schemas
 ;; Tokens are placeholders in ::kaiin/dispatch and ::kaiin/target that get
@@ -180,3 +181,43 @@
                        :signal-errors signal-errors
                        :path-param-errors path-param-errors
                        :metadata metadata})))))
+
+;; Token replacement at runtime
+
+(defn resolve-token
+  "Resolve a single token to its value given a context.
+   Context is {:signals {...} :path-params {...}}.
+   Throws if the token references a missing value."
+  [token {:keys [signals path-params]}]
+  (let [[type path] token]
+    (case type
+      ::signal
+      (let [value (if (vector? path)
+                    (get-in signals path)
+                    (get signals path))]
+        (when (nil? value)
+          (throw (ex-info "Missing signal value"
+                          {:token token
+                           :path path
+                           :available-signals (keys signals)})))
+        value)
+
+      ::path-param
+      (let [value (get path-params path)]
+        (when (nil? value)
+          (throw (ex-info "Missing path parameter"
+                          {:token token
+                           :param path
+                           :path-params path-params})))
+        value))))
+
+(defn replace-tokens
+  "Walk a form and replace all tokens with their resolved values.
+   Context is {:signals {...} :path-params {...}}."
+  [form context]
+  (walk/postwalk
+   (fn [x]
+     (if (token? x)
+       (resolve-token x context)
+       x))
+   form))
