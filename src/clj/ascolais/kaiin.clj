@@ -3,7 +3,8 @@
             [malli.error :as me]
             [clojure.string :as str]
             [clojure.walk :as walk]
-            [reitit.ring :as ring]))
+            [reitit.ring :as ring]
+            [ascolais.sandestin :as s]))
 
 ;; Token schemas
 ;; Tokens are placeholders in ::kaiin/dispatch and ::kaiin/target that get
@@ -350,12 +351,9 @@
    metadata maps directly."
   ([dispatch] (routes dispatch {}))
   ([dispatch opts]
-   (let [;; Get describe function from sandestin
-         describe (requiring-resolve 'ascolais.sandestin.describe/describe)
-
-         ;; Get effects and actions with kaiin metadata
-         effects (filter has-kaiin-metadata? (describe dispatch :effects))
-         actions (filter has-kaiin-metadata? (describe dispatch :actions))
+   (let [;; Get effects and actions with kaiin metadata
+         effects (filter has-kaiin-metadata? (s/describe dispatch :effects))
+         actions (filter has-kaiin-metadata? (s/describe dispatch :actions))
          all-items (concat effects actions)
 
          ;; Extract kaiin metadata from each item
