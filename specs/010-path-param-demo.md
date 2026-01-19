@@ -1,6 +1,6 @@
 # 010: Path Param Demo - Multi-Room Chat
 
-**Status:** Draft
+**Status:** Complete
 **Priority:** Medium
 **Dependencies:** 006-lobby-demo, 003-token-replacement
 
@@ -264,19 +264,19 @@ Alternatively, both could coexist:
 
 ## Success Criteria
 
-- [ ] Can join different rooms by name
-- [ ] Messages in room A do not appear in room B
-- [ ] Path-param tokens correctly resolve in dispatch vectors
-- [ ] Path-param tokens correctly resolve in target patterns
-- [ ] Validation rejects invalid path-param references at router creation time
+- [x] Can join different rooms by name
+- [x] Messages in room A do not appear in room B
+- [x] Path-param tokens correctly resolve in dispatch vectors
+- [x] Path-param tokens correctly resolve in target patterns
+- [x] Validation rejects invalid path-param references at router creation time
 
 ## Open Questions
 
-1. **Replace or extend?** Should this replace the lobby demo or coexist with it?
-   - Recommendation: Replace. The room demo is a superset that better demonstrates kaiin.
+~~1. **Replace or extend?** Should this replace the lobby demo or coexist with it?~~
+   - **RESOLVED:** Replaced. The room demo is a superset that better demonstrates kaiin.
 
-2. **Dynamic room creation?** Should users be able to create arbitrary rooms?
-   - Recommendation: Yes, keep it simple - any room-id in the URL works.
+~~2. **Dynamic room creation?** Should users be able to create arbitrary rooms?~~
+   - **RESOLVED:** Yes - any room-id in the URL works.
 
 ## Related Specs
 

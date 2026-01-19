@@ -6,9 +6,9 @@ This directory contains living specifications for kaiin features and concepts.
 
 ## Implementation Status
 
-Core library is complete. All specs (001-009) are implemented.
+Core library is complete. All specs (001-010) are implemented.
 
-The demo uses kaiin for all routes except `/` (static page) and `/sse` (connection establishment). User departure is handled via explicit leave action; automatic "user left" on disconnect is an application-level concern (see spec 009).
+The demo uses kaiin for all routes except `/` (static page) and `/room/:room-id/sse` (connection establishment). User departure is handled via explicit leave action; automatic "user left" on disconnect is an application-level concern (see spec 009).
 
 ## Public API
 
@@ -48,7 +48,7 @@ The main namespace `ascolais.kaiin` exports:
 | [007-action-handlers-for-broadcast](./007-action-handlers-for-broadcast.md) | Complete | Use sandestin actions (not effects) for kaiin broadcast routes |
 | [008-optional-target](./008-optional-target.md) | Complete | Optional target for direct response and complex multi-target routes |
 | [009-sfere-upgrade-on-evict](./009-sfere-upgrade-on-evict.md) | Complete | Upgrade sfere to v0.5.0, caffeine store with sliding expiry; documents on-evict limitations |
-| [010-path-param-demo](./010-path-param-demo.md) | Draft | Multi-room chat demo exercising path-param tokens |
+| [010-path-param-demo](./010-path-param-demo.md) | Complete | Multi-room chat demo exercising path-param tokens |
 
 Status values: Draft, Active, Complete, Archived
 
@@ -77,15 +77,17 @@ Peer dependencies (installed by consuming application):
 
 Kaiin produces data structures with namespaced keywords (e.g., `::twk/fx`, `::sfere/broadcast`) but doesn't call functions from twk or sfere directly.
 
-## Lobby Demo
+## Multi-Room Demo
 
-See [006-lobby-demo](./006-lobby-demo.md) for a working example in `dev/src/clj/demo/`.
+See [010-path-param-demo](./010-path-param-demo.md) for the current demo in `dev/src/clj/demo/`.
 
 Route breakdown:
 | Route | Source | Notes |
 |-------|--------|-------|
-| `GET /` | Custom | Static page render |
-| `POST /join` | Kaiin | No target - effects to caller |
-| `POST /sse` | Custom | Connection establishment |
-| `POST /message` | Kaiin | With target (broadcast) |
-| `POST /leave` | Kaiin | No target - action returns sfere effects |
+| `GET /` | Custom | Landing page with room selector |
+| `POST /room/:room-id/join` | Kaiin | No target - effects to caller |
+| `POST /room/:room-id/sse` | Custom | Connection establishment |
+| `POST /room/:room-id/message` | Kaiin | With target (broadcast to room) |
+| `POST /room/:room-id/leave` | Kaiin | No target - action returns sfere effects |
+
+The demo demonstrates `[::kaiin/path-param :room-id]` tokens in both dispatch vectors and target patterns.
