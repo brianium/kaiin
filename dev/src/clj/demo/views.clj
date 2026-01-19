@@ -26,9 +26,9 @@
      [:title "Kaiin Demo - Rooms"]
      [:script {:src twk/CDN-url :type "module"}]
      [:style styles]]
-    [:body {:data-signals:username ""
-            :data-signals:room "general"
-            :data-signals:message ""}
+    [:body {:data-signals:username "\"\""
+            :data-signals:room "\"general\""
+            :data-signals:message "\"\""}
      [:h1 "Kaiin Demo - Multi-Room Chat"]
      [:div#join-form
       [:p "Enter your name and choose a room:"]
